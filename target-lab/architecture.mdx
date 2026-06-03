@@ -1,0 +1,80 @@
+---
+title: "Target Lab Architecture: Real Environments for Agents"
+sidebarTitle: "Architecture"
+description: "Target Lab separates the Agent App from the Environment Adapter so you can evaluate agents needing a real filesystem, terminal, or network workspace."
+---
+
+Target Lab is Promptbeat's controlled environment system for evaluating agents that need a real workspace — a file system, terminal, browser, or network — rather than just a conversation endpoint. When your scenario requires an agent to actually run commands, modify files, or interact with services, Target Lab gives you the infrastructure to do that reproducibly and safely.
+
+## Core principle
+
+Do not hide the agent inside the task runtime. Manage the agent as a first-class application and connect it to a separate environment adapter. This separation keeps your agent portable across benchmark environments and makes it easy to swap environments without changing how the agent is configured or launched.
+
+```text
+Agent App
+  Codex / Claude Code / OpenClaw / custom agent
+
+Environment Adapter
+  Terminal-Bench / Harbor / custom benchmark environment
+
+Harness
+  Inspect solver / Promptfoo provider bridge / custom runner
+
+Trace Contract
+  transcript / commands / files / diffs / artifacts / scorer / logs
+```
+
+**Layer responsibilities:**
+
+| Layer | Owns |
+|---|---|
+| Promptbeat | Target profile, scenario, seed, report, and trace normalization. |
+| Agent App | CLI or SDK lifecycle, policy, model selection, and tool configuration. |
+| Environment Adapter | Workspace setup, task instructions, service startup, readiness checks, hidden tests, scoring, and teardown. |
+| Inspect | Solver execution, sandbox isolation, log collection, and artifact capture. |
+| Promptfoo | Optional probe generation, assertions, provider bridge, and reporting. |
+
+---
+
+## When to use Target Lab
+
+Use Target Lab when your evaluation scenario requires any of the following:
+
+- **Filesystem access** — your agent needs to read, write, or modify files to be tested meaningfully. A conversation-only endpoint cannot expose this behavior.
+- **Reproducible workspace state** — you need the workspace reset to a known starting state between test cases so results are comparable.
+- **Benchmark task datasets** — you are running against Terminal-Bench, Harbor, or another structured benchmark that provides task instructions and hidden test scorers.
+- **Agent runtime images** — your agent runs in a container and needs its image built and started as part of the evaluation.
+- **Trace-level evidence** — your scenario requires capturing shell commands, file diffs, tool calls, or network events as evidence in the final report.
+- **Controlled sandbox attachment** — you need to attach the agent to a sandboxed service with dependency orchestration (databases, APIs, mock services).
+
+For simpler evaluations — where you only need to send prompts to an LLM or HTTP endpoint and check responses — the standard Promptfoo provider path is faster to set up and requires no environment orchestration.
+
+---
+
+## Components
+
+A Target Lab evaluation is assembled from the following pieces:
+
+**Task instruction**
+The natural-language prompt that tells the agent what it should accomplish. Written to be realistic but designed to surface the risk behavior under test.
+
+**Workspace**
+The controlled file or directory environment the agent operates in. The workspace is typically seeded with specific files, code, or data relevant to the task.
+
+**Setup and reset hooks**
+Scripts or declarative steps that prepare the workspace before a test case runs and clean it up afterward. Reset hooks ensure every case starts from the same baseline state.
+
+**Hidden tests**
+Verifier tests the agent never sees. After the agent completes its task, hidden tests check whether the agent produced the correct output, avoided forbidden behavior, or left the workspace in an expected state. The agent cannot tailor its behavior to pass these tests directly.
+
+**Scorer**
+The component that evaluates agent artifacts against expected outcomes. A scorer reads the hidden test results and produces a pass/fail judgment with supporting evidence.
+
+**Artifacts**
+Everything captured as evidence during the run: shell transcripts, file diffs, tool call logs, stdout/stderr, and scorer output. Promptbeat normalizes these into the report trace format.
+
+---
+
+<Note>
+  Target Lab is an advanced feature intended for agent-level evaluations that genuinely require environment control. If you are evaluating a standard LLM or an HTTP-exposed agent, start with the Codex SDK or HTTP adapter path — those require no environment setup and cover the majority of safety evaluation scenarios.
+</Note>

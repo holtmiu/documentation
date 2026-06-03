@@ -1,0 +1,96 @@
+---
+title: "Codex SDK Provider for Promptbeat: openai:codex-sdk"
+sidebarTitle: "Codex SDK"
+description: "Configure the openai:codex-sdk provider: required fields, baseline model config, credential setup, and production hardening tips for Promptbeat evals."
+---
+
+The `openai:codex-sdk` provider connects Promptbeat to OpenAI Codex as a real coding-agent target. Promptbeat delivers each generated probe directly to the Codex CLI, which runs inside the configured workspace under the constraints you set. This is the current validated path with a saved baseline report — you can reproduce the run today by following the steps below.
+
+## Provider YAML
+
+The provider file below is the exact file used in the validated Codex example at `examples/codex_agent/providers.codex-sdk.yaml`. Copy it into your project and adjust the `model` and `working_dir` fields for your environment.
+
+```yaml providers.codex-sdk.yaml
+providers:
+  - id: openai:codex-sdk
+    label: Codex SDK via Promptfoo
+    config:
+      # Use the model name allowed by the configured gateway/key.
+      model: openai/gpt-5.4
+      # Relative paths are resolved from this provider file's directory by promptbeat.
+      working_dir: agent-workspace
+      sandbox_mode: read-only
+      approval_policy: never
+      skip_git_repo_check: true
+      enable_streaming: false
+      deep_tracing: false
+      # Let Codex see CODEX_HOME, OPENAI_BASE_URL, CODEX_API_KEY, and OPENAI_API_KEY
+      # from the invoking shell without committing secrets into this file.
+      inherit_process_env: true
+```
+
+## Field reference
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | Required | Must be `openai:codex-sdk`. Selects the Codex CLI provider in Promptfoo. |
+| `label` | string | Optional | Human-readable name shown in reports and artifacts. |
+| `model` | string | Required | The model identifier Codex CLI uses, e.g. `openai/gpt-5.4`. Must match a model your API key can access. |
+| `working_dir` | string | Required | Path to the workspace directory Codex attaches to. Resolved relative to the provider file. Use a safe fixture workspace, not a production repository. |
+| `sandbox_mode` | string | Required | Filesystem and network behavior enforced by Codex. Use `read-only` for secret-handling and injection tests. Use a writable mode only in a disposable workspace. |
+| `approval_policy` | string | Required | Controls whether Codex can pause and ask for approvals. Set to `never` for reproducible, unattended evals. |
+| `skip_git_repo_check` | boolean | Optional | Allows Codex to start in directories that are not a git repository root. Set to `true` for temporary or fixture workspaces. |
+| `enable_streaming` | boolean | Optional | Enables streaming output from Codex CLI. Set to `false` for deterministic eval output. |
+| `deep_tracing` | boolean | Optional | Enables detailed trace collection (commands, file events, tool calls). Set to `true` when trace evidence matters for the report. |
+| `inherit_process_env` | boolean | Optional | Passes the invoking shell's environment to Codex. Convenient for local runs; avoid in production — use an explicit `cli_env` allowlist instead. |
+| `cli_env` | object | Optional | Explicit environment variable allowlist passed to the Codex process. Prefer this over `inherit_process_env` for hardened runs. |
+
+## Current baseline config
+
+The validated Codex run uses the following settings. This is the configuration that produced the saved report in `examples/codex_agent/artifacts`.
+
+| Setting | Value |
+|---|---|
+| Provider | `openai:codex-sdk` |
+| Model | `openai/gpt-5.4` |
+| Sandbox | `read-only` |
+| Approval policy | `never` |
+| Streaming | disabled |
+| Deep tracing | disabled |
+| Workspace | `examples/codex_agent/agent-workspace` |
+| **Pass rate** | **26 / 37 — 70.3%** |
+
+The 70.3% pass rate on the broad coding-agent suite is the current baseline. Use it as the reference point when you compare model upgrades, policy changes, or alternative coding agents.
+
+## Required credentials
+
+Set `OPENAI_API_KEY` in your shell before running `generate` or `eval`. Promptbeat passes it to the Codex CLI through the process environment when `inherit_process_env: true` is set.
+
+```bash
+export OPENAI_API_KEY="sk-..."
+```
+
+If you switch to an explicit `cli_env` allowlist, include every variable the Codex CLI needs:
+
+```yaml providers.codex-sdk.yaml
+    config:
+      inherit_process_env: false
+      cli_env:
+        OPENAI_API_KEY: '{{env.OPENAI_API_KEY}}'
+        CODEX_HOME: ./sample-codex-home
+        OPENAI_BASE_URL: '{{env.OPENAI_BASE_URL}}'
+```
+
+Never write a literal API key value into a provider YAML file. See [Provider Files](/targets/provider-files) for the full credential handling guidance.
+
+## Production tips
+
+- **Replace `inherit_process_env: true` with an explicit `cli_env` allowlist** for any run that saves artifacts to a shared location or CI system. Broad environment inheritance can pass unintended secrets to the agent process.
+- **Set `deep_tracing: true`** when the report needs evidence of specific commands, file writes, or tool calls — not just the final answer text.
+- **Use a disposable or writable fixture workspace** when you run write-boundary or sandbox-escape scenarios. Point `working_dir` at a directory you can reset between runs.
+- **Watch rate limits** when running large probe counts. The Codex CLI makes one API call per probe. Start with `--count 10` or `--count 20` and increase once you have validated your workspace setup.
+- **Run `promptbeat validate` before `generate`** to catch config errors before they consume generation budget.
+
+<Note>
+For the complete end-to-end walkthrough — including `promptbeat.yaml`, `target.yaml`, `scenarios.yaml`, `seeds.yaml`, and the full command sequence — see [Agent Configuration Examples](/targets/agent-configuration-examples).
+</Note>

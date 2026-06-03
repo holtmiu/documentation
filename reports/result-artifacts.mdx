@@ -1,0 +1,105 @@
+---
+title: "Evaluation Result Artifacts: Paths and Contents"
+sidebarTitle: "Artifacts"
+description: "Promptbeat artifact paths for generate, eval, and report stages: what each file contains, the default directory structure, and version control guidance for each artifact type."
+---
+
+Each stage of the Promptbeat pipeline produces artifact files. Knowing where artifacts live and what they contain helps you debug failed runs, share results with your team, and track progress over time. Promptbeat's CLI stages expect artifacts at these exact paths by default — changing the directory structure requires updating your configuration explicitly.
+
+## Generate artifacts
+
+The `generate` stage produces the attack pool before any evaluation runs. These files record what was generated so you can inspect the probe set, re-sample it, or reproduce the generation later.
+
+| Artifact file | Path | What it contains |
+|---|---|---|
+| `generated_redteam.yaml` | `artifacts/generate/generated_redteam.yaml` | Complete generated attack pool across all risk families and scenarios |
+| Per-scenario Promptfoo config | `artifacts/generate/<scenario>/promptfoo.redteam.yaml` | Promptfoo red-team configuration for a single scenario |
+| Per-scenario generated pool | `artifacts/generate/<scenario>/generated_redteam.yaml` | Generated probes scoped to one scenario |
+| Sampled pool | `artifacts/generate/generated_redteam.sampled<N>.yaml` | Evaluated sample when sampling is used (e.g., `sampled32` for 32 probes) |
+
+## Eval artifacts
+
+The `eval` stage runs the generated probes against your target and produces the normalized result plus raw backend output and logs.
+
+| Artifact file | Path | What it contains |
+|---|---|---|
+| `evaluation_result.json` | `artifacts/eval/evaluation_result.json` | Normalized Promptbeat result with all case records, assertions, and metadata; see [Report schema](/reports/report-schema) |
+| `promptfoo_eval_result.json` | `artifacts/eval/promptfoo_eval_result.json` | Raw Promptfoo output before Promptbeat normalization |
+| Stdout log | `artifacts/eval/promptfoo.eval.stdout.log` | Full stdout from the Promptfoo eval runner |
+| Stderr log | `artifacts/eval/promptfoo.eval.stderr.log` | Full stderr from the Promptfoo eval runner; check here first when a run produces unexpected errors |
+
+## Report artifacts
+
+The `report` stage reads `evaluation_result.json` and produces human-readable output. Both HTML and Markdown formats are generated from the same normalized result.
+
+| Artifact file | Path | What it contains |
+|---|---|---|
+| `report.html` | `artifacts/eval/report.html` | Visual report with pass/fail charts, risk-family breakdown, and case detail panels |
+| `comprehensive-*.md` | `comprehensive-codex-safety-report.md` | Human-readable analysis including failure narrative, representative failures, and recommendations |
+
+## Default artifact directory structure
+
+Promptbeat writes artifacts into a project-scoped directory. The structure below shows the layout for a named project run:
+
+```
+artifacts/
+  <project>/
+    config-precheck.json
+    promptbeat.yaml
+    target.yaml
+    scenarios.yaml
+    seeds.yaml
+    providers.<adapter>.yaml
+    generate/
+      generated_redteam.yaml
+      generated_redteam.sampled<N>.yaml
+      <scenario>/
+        promptfoo.redteam.yaml
+        generated_redteam.yaml
+    eval-sampled<N>/
+      evaluation_result.json
+      promptfoo_eval_result.json
+      promptfoo.eval.stdout.log
+      promptfoo.eval.stderr.log
+    report.html
+    comprehensive-<project>-report.md
+```
+
+For the broad Codex reference run, the project directory is `broad-20260530-163553` under `examples/codex_agent/artifacts/`.
+
+## Version control guidance
+
+Not all artifact files belong in version control. Follow this guidance to keep your repository clean and reproducible without committing large or sensitive files.
+
+**Commit these files:**
+
+- Configuration files: `promptbeat.yaml`, `target.yaml`, `scenarios.yaml`, `seeds.yaml`
+- Provider snapshots: `providers.<adapter>.yaml`
+- Config precheck results: `config-precheck.json`
+- Generated attack pool: `generated_redteam.yaml` and sampled variants (these document what was tested)
+- Reports: `report.html` and `comprehensive-*.md` (these are your evidence artifacts)
+- Normalized result: `evaluation_result.json` (structured, stable schema)
+
+**Gitignore these files:**
+
+- Raw backend output: `promptfoo_eval_result.json` (unstable schema, large, backend-specific)
+- Large log files: `promptfoo.eval.stdout.log`, `promptfoo.eval.stderr.log`
+- Any file containing credentials, tokens, or environment variable snapshots
+- Intermediate workspace files created during agent evaluation
+
+A minimal `.gitignore` entry for Promptbeat artifact directories:
+
+```gitignore
+# Promptbeat raw backend output and logs
+artifacts/**/promptfoo_eval_result.json
+artifacts/**/*.stdout.log
+artifacts/**/*.stderr.log
+```
+
+<Warning>
+  Never commit files that contain environment variable dumps, secret values, or process credential captures — even if the agent produced them as a demonstration of unsafe behavior. Replace sensitive values with redacted placeholders before committing any artifact that touches secret material.
+</Warning>
+
+<Tip>
+  Use artifact paths exactly as shown above — Promptbeat's CLI stages expect these locations by default. If you change the `output_dir` in your configuration, update all downstream stage references consistently. The `eval_id` field in `evaluation_result.json` ties together all artifacts from a single run, so include it in issue titles and PR descriptions when discussing specific results.
+</Tip>

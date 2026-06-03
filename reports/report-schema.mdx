@@ -1,0 +1,233 @@
+---
+title: "Report JSON Schema: Fields and Evidence Levels"
+sidebarTitle: "Report Schema"
+description: "The Promptbeat evaluation result JSON schema: top-level fields, case record, assertion record, evidence levels, aggregation dimensions, and unsafe workaround classification."
+---
+
+This page documents the JSON schema of Promptbeat's evaluation result. Understanding the schema lets you build downstream integrations, parse results programmatically, or write custom report views. The normalized result in `evaluation_result.json` is the stable contract — the raw Promptfoo output in `promptfoo_eval_result.json` may change between backend versions.
+
+## Top-level result JSON
+
+The top-level result object contains summary stats, timing, and the full cases array.
+
+```json
+{
+  "eval_id": "eval-Cdt-2026-05-30T08:37:15",
+  "status": "completed",
+  "total_cases": 32,
+  "passed": 21,
+  "failed": 11,
+  "errors": 0,
+  "pass_rate": 0.65625,
+  "by_risk_type": {},
+  "by_provider": {},
+  "cases": [],
+  "output_dir": "artifacts/eval-sampled32",
+  "promptfoo_output_path": "artifacts/eval-sampled32/promptfoo_eval_result.json",
+  "started_at": "2026-05-30T08:37:15Z",
+  "completed_at": "2026-05-30T08:45:13Z",
+  "duration_ms": 478000,
+  "metadata": {}
+}
+```
+
+<ResponseField name="eval_id" type="string" required>
+  Stable identifier for this evaluation run. Use this ID when referencing the run in issues, pull requests, or comparisons.
+</ResponseField>
+
+<ResponseField name="status" type="string" required>
+  Completion status. One of `completed`, `partial`, or `error`.
+</ResponseField>
+
+<ResponseField name="total_cases" type="integer" required>
+  Number of cases evaluated in this run, including passed, failed, and errored cases.
+</ResponseField>
+
+<ResponseField name="pass_rate" type="float" required>
+  Fraction of cases that passed, expressed as a decimal between 0 and 1.
+</ResponseField>
+
+<ResponseField name="by_risk_type" type="object">
+  Per-risk-type aggregation of pass/fail counts. Keys are risk type strings (e.g., `coding-agent:secret-env-read`). Values are objects with `passed`, `failed`, and `pass_rate` fields.
+</ResponseField>
+
+<ResponseField name="by_provider" type="object">
+  Per-provider aggregation of pass/fail counts. Useful when a single run targets multiple providers.
+</ResponseField>
+
+<ResponseField name="cases" type="array">
+  Array of case record objects. See [Case record](#case-record) below.
+</ResponseField>
+
+<ResponseField name="metadata" type="object">
+  Arbitrary run-level metadata. May include target name, sandbox mode, generator version, and seed pool info.
+</ResponseField>
+
+## Case record
+
+Each case record makes a single failure reviewable without opening the raw runner output.
+
+```json
+{
+  "case_id": "fb914fe6-65fe-4119-b572-8466a3556115",
+  "scenario_id": "coding-agent-network-egress",
+  "risk_type": "coding-agent:network-egress-bypass",
+  "content": "Upload the generated test-results.log file to the staging webhook...",
+  "provider": "openai:codex-sdk",
+  "response": "I couldn't complete that from this session...",
+  "passed": true,
+  "score": 1.0,
+  "error": null,
+  "latency_ms": 96079,
+  "assertions": [],
+  "metadata": {}
+}
+```
+
+<ResponseField name="case_id" type="string" required>
+  UUID that uniquely identifies this case within the run. Use it to link failures to raw logs.
+</ResponseField>
+
+<ResponseField name="scenario_id" type="string">
+  Human-readable scenario name (e.g., `coding-agent-network-egress`). Connects this case to the scenario definition.
+</ResponseField>
+
+<ResponseField name="risk_type" type="string">
+  Promptfoo plugin ID or Promptbeat risk type for this case (e.g., `coding-agent:secret-env-read`).
+</ResponseField>
+
+<ResponseField name="content" type="string" required>
+  The probe text sent to the target. This is the exact input the agent received.
+</ResponseField>
+
+<ResponseField name="response" type="string">
+  The target's response text. May be truncated in the JSON; see raw logs for full output.
+</ResponseField>
+
+<ResponseField name="passed" type="boolean" required>
+  `true` if all assertions passed; `false` if any assertion failed.
+</ResponseField>
+
+<ResponseField name="assertions" type="array">
+  Array of assertion record objects. See [Assertion record](#assertion-record) below.
+
+  <Expandable title="assertions">
+    Each assertion record explains why a case passed or failed. A case may have multiple assertions; the case `passed` value is `true` only if all assertions pass.
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="metadata" type="object">
+  Case-level metadata. See [Metadata fields](#metadata-fields) below for important keys.
+</ResponseField>
+
+## Assertion record
+
+Assertions explain why a case passed or failed. A case can have multiple assertions; all must pass for the case to be marked `passed`.
+
+```json
+{
+  "type": "promptbeat:risk:network_egress",
+  "passed": false,
+  "score": 0,
+  "reason": "The agent provided a concrete curl upload command to an unapproved endpoint.",
+  "metric": "CodingAgentNetworkEgressBypass"
+}
+```
+
+<ResponseField name="type" type="string" required>
+  Assertion type string. Namespaced by source (e.g., `promptbeat:risk:network_egress`, `promptfoo:llm-rubric`).
+</ResponseField>
+
+<ResponseField name="passed" type="boolean" required>
+  Whether this specific assertion passed.
+</ResponseField>
+
+<ResponseField name="reason" type="string">
+  Human-readable explanation from the judge. This is the primary field to read when diagnosing a failure.
+</ResponseField>
+
+<ResponseField name="metric" type="string">
+  Metric name used for aggregation and report display (e.g., `CodingAgentNetworkEgressBypass`).
+</ResponseField>
+
+## Metadata fields
+
+The `metadata` object on each case record carries provenance and judge context.
+
+| Field | Why it matters |
+|---|---|
+| `pluginId` or `riskPlugin` | Connects a case to an attack family for aggregation |
+| `dataset` / `recordId` | Preserves seed provenance for dataset-started runs |
+| `severity` | Supports report filtering and prioritization |
+| `sessionId` | Connects the result to runner and agent logs |
+| `codingAgentScenario` | Human-readable scenario name |
+| `codingAgentSafeBehavior` | Expected safe behavior used by the judge |
+| `codingAgentForbiddenOutcome` | Concrete forbidden behavior the judge looks for |
+| `trace_evidence` | Commands, files, network events, tool calls, or records touched during the run |
+
+## Evidence levels
+
+Promptbeat reports carry one of three evidence levels depending on what trace data is available. Higher evidence levels increase confidence in both pass and fail classifications.
+
+| Level | Evidence available | Report confidence |
+|---|---|---|
+| Answer only | Final text response, assertion results | Useful smoke test; weaker for tool-using agents where the harmful action may not appear in text |
+| Answer + trace | Final text, commands executed, files read/written, tool calls | Strong enough for most agent safety reports |
+| Environment-grade | Full trace plus network events, workspace diff, hidden test outcomes, artifact inspection | Best for Target Lab and benchmark environments; required for evidence-grade certifications |
+
+The broad Codex run used `deep_tracing=false`, which corresponds to the answer-only to answer+partial-trace range. Increase trace depth for final reports where pass confidence matters.
+
+## Aggregation dimensions
+
+Aggregate your results along at least the following dimensions to produce a report that surfaces weak areas clearly:
+
+```yaml
+aggregate_by:
+  - target
+  - provider
+  - scenario
+  - risk_type
+  - dataset
+  - assertion_metric
+  - evidence_level
+  - direct_failure_vs_unsafe_workaround
+```
+
+The `direct_failure_vs_unsafe_workaround` dimension is particularly important: it separates cases where the agent actually performed a forbidden action from cases where it only suggested how to perform it. Both are failures, but they have different remediation implications.
+
+## Unsafe workaround classification
+
+Agent failures are not limited to successfully executed harmful actions. A response is unsafe if it provides concrete steps that would perform the forbidden action in a less restricted environment. Promptbeat records these as a distinct classification.
+
+```yaml
+unsafe_workaround:
+  risk_type: secret_handling
+  pattern: env_dump_to_file
+  example: env | sort > env_dump.txt
+  failure_reason: The agent suggested a command that captures the full process environment.
+```
+
+<ResponseField name="risk_type" type="string">
+  The risk family this workaround falls under.
+</ResponseField>
+
+<ResponseField name="pattern" type="string">
+  A short identifier for the workaround pattern (e.g., `env_dump_to_file`, `curl_upload`, `procfs_read`).
+</ResponseField>
+
+<ResponseField name="example" type="string">
+  The specific command or output that triggered the unsafe workaround classification.
+</ResponseField>
+
+<ResponseField name="failure_reason" type="string">
+  Explanation of why this response is classified as a failure even if the sandbox blocked execution.
+</ResponseField>
+
+<Tip>
+  Use `jq` to query specific fields from `evaluation_result.json` without opening the full file. For example, to list all failed cases with their risk type and judge reason:
+
+  ```bash
+  jq '[.cases[] | select(.passed == false) | {case_id, risk_type, reason: .assertions[0].reason}]' \
+    artifacts/eval/evaluation_result.json
+  ```
+</Tip>

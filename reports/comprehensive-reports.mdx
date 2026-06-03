@@ -1,0 +1,86 @@
+---
+title: "Comprehensive Evaluation Reports in Promptbeat"
+sidebarTitle: "Reports"
+description: "What a Promptbeat comprehensive report contains: four key questions, required sections, artifact table, example summary, and the command to generate an HTML report."
+---
+
+Promptbeat generates comprehensive reports after each evaluation. A report must answer four key questions and provide enough evidence to reproduce the run and explain what failed. A pass/fail count is not sufficient for agent evaluation — the report must retain scenario, risk, target, provider, generated case, assertion, and trace evidence so the results are reviewable and comparable across runs.
+
+## Four questions a report answers
+
+Every Promptbeat report is structured to answer these four questions:
+
+**1. What did the target do wrong?**
+The report must show the specific cases that failed, the unsafe behavior observed, and the judge signal that triggered the failure. It is not enough to say "11 cases failed" — the report must explain which risk families failed and why.
+
+**2. How was it provoked?**
+The report must trace each failure back to its seed, scenario, and generated probe. A reader should be able to look at a failure and understand exactly what the agent was asked to do and from what attack family the probe came.
+
+**3. What would a safe response look like?**
+For each failure, the report must include the expected safe behavior: what the agent should have done. This allows evaluators to verify that the judge signal is calibrated correctly and helps developers understand the required behavior change.
+
+**4. Is this reproducible?**
+The report must record the full configuration — target, provider, generator, sandbox mode, seed pool, sample size, and artifact paths — so the run can be repeated exactly or compared against a future run on the same target.
+
+## Report artifacts
+
+Each Promptbeat evaluation produces the following artifact files:
+
+| Artifact | Format | What it contains |
+|---|---|---|
+| `evaluation_result.json` | JSON | Structured Promptbeat result with all cases, assertions, and metadata; see [Report schema](/reports/report-schema) |
+| `promptfoo_eval_result.json` | JSON | Raw Promptfoo output before Promptbeat normalization |
+| `generated_redteam.yaml` | YAML | Complete generated attack pool before sampling |
+| `generated_redteam.sampled*.yaml` | YAML | The evaluated sample when sampling is used (e.g., `sampled32`) |
+| `report.html` | HTML | Visual report with pass/fail charts and case detail |
+| `comprehensive-*.md` | Markdown | Human-readable analysis with failure narrative and recommendations |
+
+## Required sections
+
+Every comprehensive report must include the following sections:
+
+- **Configuration preflight** — record which preflight checks passed or flagged issues before the run started
+- **Scope and target identity** — the target name, model, adapter, sandbox mode, and approval policy
+- **Generation source and count** — the generator, seed pool, number of probes generated, and sampling method
+- **Pass/fail/error summary** — top-level counts and pass rate, separated by suite if multiple suites ran
+- **By-risk or by-plugin breakdown** — pass rate per risk family or plugin so weak surfaces are clearly visible
+- **Representative failures** — concrete examples of failing cases with the prompt summary, unsafe behavior, and judge signal
+- **Failure pattern classification** — group failures into named patterns (e.g., unsafe workaround, process credential probing) and count cases per pattern
+- **Artifact links** — full paths to all artifact files so the run is navigable and reproducible
+- **Recommendations** — actionable next steps based on the failure patterns observed
+
+## Example report summary
+
+The following is an example of the summary section from the broad Codex coding-agent evaluation:
+
+```text
+Codex broad coding-agent safety eval
+32 sampled cases from 128 generated probes
+21 passed / 11 failed / 0 errors
+Weakest: procfs credential read (0%), secret env read (50%), network egress bypass (50%)
+Strongest: repo prompt injection (100%), terminal output injection (100%), steganographic exfil (100%)
+```
+
+This summary gives a reader the scope, the outcome, and the risk landscape in four lines. The full report then expands each weak area with representative failures and failure pattern analysis.
+
+## Generating the report
+
+After your evaluation completes, run the following command to produce an HTML report from the normalized result:
+
+```bash
+./bin/promptbeat report \
+  --eval-result artifacts/eval/evaluation_result.json \
+  --output report.html
+```
+
+The `--eval-result` flag points to the normalized Promptbeat result file from the `eval` stage. The `--output` flag sets the HTML report path. You can also output a Markdown report by changing the extension:
+
+```bash
+./bin/promptbeat report \
+  --eval-result artifacts/eval/evaluation_result.json \
+  --output comprehensive-report.md
+```
+
+<Tip>
+  Keep all report artifacts in version control so you can compare runs over time. Commit the HTML and Markdown reports alongside your configuration files and seeds. Use the `eval_id` field in `evaluation_result.json` as a stable identifier when referencing a specific run in issues or pull requests.
+</Tip>

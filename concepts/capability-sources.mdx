@@ -1,0 +1,105 @@
+---
+title: "Capability Sources: Promptfoo, Inspect, and Datasets"
+sidebarTitle: "Capability Sources"
+description: "Learn how Promptbeat coordinates Promptfoo plugins, dataset adapters, and Inspect environments — and how scenarios drive source selection automatically."
+---
+
+Promptbeat coordinates multiple capability sources to generate adversarial probes, execute them against targets, and judge the results. You do not pick a capability source directly. Instead, the scenario's `risk_type`, `metadata.plugins`, and target capabilities tell Promptbeat which sources to activate for that evaluation. Understanding what each source provides helps you write scenarios and targets that unlock the right coverage.
+
+## Capability source overview
+
+| Source | What it provides | When it's used |
+|---|---|---|
+| **Promptfoo** | Adversarial generation plugins, jailbreak strategies, framing styles, provider management, assertions, and reports | Default source for all LLM and agent evaluations; selected when the scenario declares `metadata.plugins` or when no environment adapter is required |
+| **Datasets** | Curated seed pools from safety benchmarks (HarmBench, JBB, ALERT, and others) | When you want broader seed coverage than hand-written seeds provide, or when you need to run against a published benchmark corpus |
+| **Inspect** | Agent lifecycle control, benchmark environment setup, hidden test execution, sandbox-local CLI runtime, artifact and trace collection | When the scenario requires a controlled execution environment with real tool access, not just a chat provider |
+| **Environment Adapters (Target Lab)** | Benchmark task sources with their own setup, services, hidden tests, and scoring (Terminal-Bench, Harbor) | When the evaluation needs an externally managed benchmark environment; Promptbeat owns target contracts and report normalization, the benchmark owns the rest |
+
+## Promptfoo
+
+Promptfoo is Promptbeat's primary capability source for adversarial generation and evaluation. It provides:
+
+- **Plugin system** — A library of attack plugins (e.g., `coding-agent:secret-env-read`, `promptfoo:redteam:prompt-extraction`) that generate targeted adversarial prompts for specific risk types
+- **Strategies** — Generation strategies like `direct` (single-turn) and multi-turn jailbreak chains that vary how probes are delivered
+- **Framing styles** — Stylistic wrappers (authority claims, urgency pressure, audit requests) that the generator model applies to seeds
+- **Provider management** — Promptbeat uses Promptfoo's provider layer to route probes to the target model or agent, including native support for `openai:codex-sdk`, `openai:gpt-4o`, Anthropic, and Gemini providers
+- **Assertions and reports** — Built-in judges like `promptfoo:is-refusal` and `promptfoo:not-contains`, plus HTML and JSON report output
+
+Declare Promptfoo plugins in the scenario's `metadata` block:
+
+```yaml scenarios.yaml
+metadata:
+  plugins:
+    - id: coding-agent:secret-env-read
+      use_examples: false
+  strategies: []
+```
+
+## Datasets
+
+Datasets serve as seed pools — large collections of real-world adversarial prompts drawn from published safety benchmarks. Instead of writing every seed by hand, you subscribe to a dataset and Promptbeat maps its categories to your scenario's risk types before generation or evaluation.
+
+Key datasets available in Promptbeat:
+
+| Dataset | Focus area |
+|---|---|
+| **HarmBench** | Broad harmful-content and jailbreak behaviors |
+| **JailbreakBench (JBB)** | Jailbreak success/failure baselines |
+| **ToxicChat** | Toxic and harmful conversation patterns |
+| **ALERT** | Adversarial safety evaluation across risk categories |
+| **XSTest** | False-positive safety refusals on benign prompts |
+| **Do-Not-Answer** | Instruction-following refusal scenarios |
+| **JADE-DB** | Jailbreak and adversarial dataset entries |
+| **BeaverTails** | Preference-labeled harmful prompt pairs |
+| **OR-Bench** | Over-refusal behavior benchmarks |
+| **SALAD-Bench** | Safety-aligned LLM adversarial dataset |
+
+Because dataset categories don't always align with Promptbeat's risk taxonomy, you provide a mapping rule that tells Promptbeat how to translate each source category into a scenario risk type:
+
+```yaml dataset risk mapping
+datasetRiskMapping:
+  datasetId: harmbench
+  taxonomySystem: harmbench
+  unmappedPolicy: skip
+  rules:
+    - sourceCategory:
+        category: cyber
+      riskType: harmful_content
+      scenarioIds:
+        - direct-harmful-content
+    - sourceCategory:
+        category: privacy
+      riskType: privacy_pii
+      scenarioIds:
+        - support-pii-leakage
+    - sourceCategory:
+        category: jailbreak
+      riskType: prompt_injection
+      scenarioIds:
+        - coding-agent-repo-injection
+```
+
+See the [Datasets](/datasets/overview) section for the full catalog and mapping guides.
+
+## Inspect and Target Lab
+
+Inspect is the capability source for scenarios that require a real, controlled execution environment — not just a text-in, text-out provider. Use Inspect when your target is an agent with real tool access and your scenario needs:
+
+- **Agent lifecycle control** — Start, pause, and teardown the agent under reproducible conditions
+- **Benchmark environment setup** — Provision workspace directories, secret files, or network services before each probe
+- **Hidden tests and scorers** — Run automated checks after the agent completes a task (e.g., verify that no secrets leaked into the workspace)
+- **Sandbox-local CLI runtime** — Execute agent CLIs like Codex directly inside the evaluation sandbox
+- **Artifact and trace collection** — Capture file diffs, command logs, network events, and build artifacts as evidence
+
+**Target Lab** extends Inspect with environment adapters for externally managed benchmark task sources:
+
+- **Terminal-Bench** — Tasks focused on terminal and shell agent behavior
+- **Harbor** — Multi-service environment tasks with networked components
+
+In both cases, Promptbeat owns the target contract, scenario selection, and report normalization. The benchmark environment owns task setup, hidden test execution, and raw scoring. Promptbeat translates those raw scores into its unified report schema.
+
+See the [Target Lab](/target-lab/architecture) section for architecture details and adapter configuration.
+
+<Note>
+Promptbeat selects capability sources based on what the scenario and target declare — you don't pick the source directly. A scenario with `metadata.plugins` activates Promptfoo. A scenario that requires `sandbox_boundary` evidence against a CLI agent activates Inspect. A scenario with a dataset subscription activates the dataset adapter. The right source is chosen for you at generation and eval time.
+</Note>

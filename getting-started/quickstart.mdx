@@ -1,0 +1,106 @@
+---
+title: "Get Started with Promptbeat: Install, Eval, and Report"
+sidebarTitle: "Quick Start"
+description: "Install Promptbeat, validate a config, generate adversarial probes, run the evaluation, and open your first HTML safety report in under ten minutes."
+---
+
+This guide walks you through the core Promptbeat workflow using the built-in `llm-basic` example. By the end you will have validated a config, generated adversarial probes with an attacker model, evaluated a real LLM target, and produced an HTML report showing pass/fail results by risk type. No custom configuration required—everything runs from the example files included in the release package.
+
+<Steps>
+  <Step title="Install Promptbeat">
+    Install or unpack a Promptbeat release package, then verify the binary is available from the package root:
+
+    ```bash
+    ./bin/promptbeat --version
+    ```
+
+    If you are using `uv`, you can run Promptbeat directly without unpacking:
+
+    ```bash
+    uv run promptbeat --version
+    ```
+
+    The rest of this guide uses the `./bin/promptbeat` form. Substitute `uv run promptbeat` wherever you see `./bin/promptbeat` if you prefer the `uv` path.
+  </Step>
+
+  <Step title="Validate the example config">
+    Before generating anything, confirm that the example config parses correctly and all referenced files resolve:
+
+    ```bash
+    ./bin/promptbeat validate --config examples/llm-basic/promptbeat.yaml
+    ```
+
+    Validation checks YAML syntax, required fields, scenario references, seed file paths, and provider configuration. Fix any reported errors before proceeding. Common causes are missing seed files or an unresolvable provider name.
+  </Step>
+
+  <Step title="Generate adversarial probes">
+    Export your OpenAI API key, then run the generator. The generator model reads your scenario and seed files and writes expanded adversarial probes to the output directory:
+
+    ```bash
+    export OPENAI_API_KEY="sk-..."
+
+    ./bin/promptbeat generate \
+      --config examples/llm-basic/promptbeat.yaml \
+      --output-dir artifacts/llm-basic/generate
+    ```
+
+    Promptbeat writes a `generated_redteam.yaml` file into `artifacts/llm-basic/generate/`. That file is a self-contained Promptfoo red-team config that drives the evaluation in the next step.
+  </Step>
+
+  <Step title="Evaluate the generated probes">
+    Run the evaluation against the generated config. Promptbeat executes each probe against the configured target, judges the responses, and collects trace evidence:
+
+    ```bash
+    ./bin/promptbeat eval \
+      --config artifacts/llm-basic/generate/generated_redteam.yaml \
+      --output-dir artifacts/llm-basic/eval
+    ```
+
+    Results land in `artifacts/llm-basic/eval/evaluation_result.json`. The JSON file contains every probe, response, judge verdict, and captured evidence.
+  </Step>
+
+  <Step title="Generate the report">
+    Convert the evaluation result into a human-readable HTML report:
+
+    ```bash
+    ./bin/promptbeat report \
+      --eval-result artifacts/llm-basic/eval/evaluation_result.json \
+      --output artifacts/llm-basic/report.html
+    ```
+
+    Open `artifacts/llm-basic/report.html` in a browser to review pass/fail results, risk-type breakdowns, and the evidence captured for each failing case.
+  </Step>
+</Steps>
+
+## What you'll find in the report
+
+The HTML report organizes results by risk type and scenario. For each evaluated probe you will see:
+
+- **Verdict** — pass or fail, based on the judge strategy defined in the scenario.
+- **Risk type** — the risk taxonomy tag the scenario maps to (for example `t-002` for secret environment reads).
+- **Probe and response** — the exact adversarial input sent to the target and the raw response returned.
+- **Failure evidence** — for failing cases, the specific signal that triggered the failure, such as a matched secret string or a detected unsafe workaround pattern.
+- **Trace artifacts** — when the target emits trace data (commands run, files written, tool calls made), those traces are captured alongside the response.
+
+The raw `evaluation_result.json` artifact in `artifacts/llm-basic/eval/` contains the full structured data if you need to feed results into a downstream pipeline or CI check.
+
+<Note>
+  The `llm-basic` example evaluates a single LLM provider and is designed to get you familiar with the workflow quickly. For a more complete walkthrough that runs attacks against a real coding-agent runtime with shell access and file-system capabilities, see the [Codex Quickstart](/getting-started/codex-quickstart).
+</Note>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Core Concepts" icon="book-open" href="/concepts/target-scenario-seed">
+    Understand targets, scenarios, seeds, subscriptions, and provider adapters in depth.
+  </Card>
+  <Card title="Agent Targets" icon="crosshairs" href="/targets/typical-agent-apps">
+    See how Promptbeat models coding agents, browser agents, support agents, and more as first-class targets.
+  </Card>
+  <Card title="Datasets" icon="database" href="/datasets/overview">
+    Load seeds from HarmBench, JailbreakBench, ALERT, BeaverTails, and other catalog datasets via subscriptions.
+  </Card>
+  <Card title="Risk Taxonomy" icon="shield-halved" href="/concepts/risk-taxonomy">
+    Browse the risk type tags and attack categories used in scenario definitions.
+  </Card>
+</CardGroup>

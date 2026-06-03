@@ -1,0 +1,128 @@
+{
+  "projectType": "saas",
+  "projectName": "Promptbeat",
+  "projectDescription": "Promptbeat is a scenario-driven safety evaluation toolkit that red-teams real AI agents and LLM applications across coding, browser, support, data, and DevOps targets.",
+  "theme": "luma",
+  "primaryColor": "#0F766E",
+  "lightColor": "#0F766E",
+  "darkColor": "#2DD4BF",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "getting-started/overview",
+              "getting-started/quickstart",
+              "getting-started/codex-quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/target-scenario-seed",
+              "concepts/configuration-model",
+              "concepts/risk-taxonomy",
+              "concepts/capability-sources",
+              "concepts/preflight-checks"
+            ]
+          },
+          {
+            "group": "Targets",
+            "pages": [
+              "targets/agent-targets",
+              "targets/typical-agent-apps",
+              "targets/agent-configuration-examples",
+              "targets/codex-sdk",
+              "targets/provider-files"
+            ]
+          },
+          {
+            "group": "Datasets",
+            "pages": [
+              "datasets/overview",
+              "datasets/catalog",
+              "datasets/harmbench"
+            ]
+          },
+          {
+            "group": "Coding Agent Safety",
+            "pages": [
+              "coding-agent/coverage",
+              "coding-agent/attack-patterns",
+              "coding-agent/attack-examples",
+              "coding-agent/broad-codex-report"
+            ]
+          },
+          {
+            "group": "Reports",
+            "pages": [
+              "reports/comprehensive-reports",
+              "reports/report-schema",
+              "reports/result-artifacts"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "CLI",
+            "pages": [
+              "reference/cli"
+            ]
+          },
+          {
+            "group": "API",
+            "pages": [
+              "reference/api-service",
+              "reference/yaml"
+            ]
+          },
+          {
+            "group": "Target Lab",
+            "pages": [
+              "target-lab/architecture",
+              "target-lab/inspect-and-adapters"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Scenario-driven adversarial test generation for AI agents",
+    "Real agent execution via Codex SDK, HTTP, and adapter providers",
+    "10-category risk taxonomy covering prompt injection, secret handling, sandbox escape, network egress, and more",
+    "Dataset subscriptions from HarmBench, JBB, ToxicChat, ALERT, and 10+ catalogs",
+    "Trace-aware judging that inspects commands, file reads, tool calls, and network events",
+    "Multi-model comparison across generator, target, judge, and baseline roles",
+    "Preflight validation of target reachability and scenario quality",
+    "Comprehensive HTML/JSON/Markdown reporting with reproducibility artifacts",
+    "Go web service API for asynchronous batch attack generation",
+    "Target Lab controlled environments via Inspect and benchmark adapters"
+  ],
+  "publicApiSurface": [
+    "promptbeat validate --config <file>",
+    "promptbeat generate --config <file> --output-dir <dir>",
+    "promptbeat eval --config <file> --output-dir <dir>",
+    "promptbeat report --eval-result <file>",
+    "POST /api/v1/attack/preview",
+    "POST /api/v1/attack/task/create",
+    "GET /api/v1/attack/task/{taskId}",
+    "Provider: openai:codex-sdk",
+    "Provider: openai:<model>",
+    "Provider: anthropic:<model>",
+    "Provider: http:<endpoint>",
+    "DatasetSpec YAML",
+    "Scenario YAML (risk, failure_criteria, judge_strategy)",
+    "Seed YAML",
+    "Target YAML (name, description, capabilities)",
+    "promptbeat.yaml (project config)",
+    "subscriptions/*.yaml (dataset subscription plans)"
+  ]
+}

@@ -1,0 +1,141 @@
+---
+title: "Provider Files: Connect Any Agent or LLM to Promptbeat"
+sidebarTitle: "Provider Files"
+description: "Provider files define the execution contract for each target. Learn path handling, credential management, and multi-provider comparison in Promptbeat."
+---
+
+Provider files define the execution contract between Promptbeat and your agent or LLM. They specify the provider type, model, and any configuration the target runtime needs. Because provider files are separate from your scenario and generation config, you can regenerate probes once and re-evaluate them against multiple targets without touching the scenario logic. This separation is one of the core design principles that makes Promptbeat comparisons reproducible.
+
+## What a provider file contains
+
+Every provider file contains a `providers` list. Each entry in the list has three parts:
+
+- **`id`** — the provider type string that selects the execution backend, such as `openai:codex-sdk`, `openai:gpt-4o`, `anthropic:claude-3-5-sonnet-latest`, or `http`.
+- **`label`** — a human-readable name shown in reports and artifact filenames.
+- **`config`** — a block of provider-specific settings such as `model`, `working_dir`, `sandbox_mode`, `url`, `headers`, and `body`.
+
+```yaml providers.codex-sdk.yaml
+providers:
+  - id: openai:codex-sdk
+    label: Codex SDK via Promptfoo
+    config:
+      model: openai/gpt-5.4
+      working_dir: agent-workspace
+      sandbox_mode: read-only
+      approval_policy: never
+      skip_git_repo_check: true
+      enable_streaming: false
+      deep_tracing: false
+      inherit_process_env: true
+```
+
+```yaml providers.http.yaml
+providers:
+  - id: http
+    label: Support agent HTTP endpoint
+    config:
+      url: http://localhost:8088/eval/run
+      method: POST
+      headers:
+        content-type: application/json
+        authorization: Bearer {{env.AGENT_EVAL_TOKEN}}
+      body:
+        prompt: '{{prompt}}'
+        scenario_id: '{{scenarioId}}'
+        tenant_id: tenant-a
+        user_id: user-123
+      transformResponse: json.answer
+```
+
+## Path handling
+
+Pass your provider file to Promptbeat using the `--provider-file` flag on `generate` and `eval`. Promptbeat resolves `working_dir` and `cwd` values inside the config block relative to the provider file's own location — not relative to your shell's current directory. This keeps paths stable when generated configs are written to an `artifacts/` subdirectory.
+
+```bash
+uv run promptbeat generate \
+  --config promptbeat.yaml \
+  --provider-file providers.codex-sdk.yaml \
+  --generator-provider openai:openai/gpt-5.5 \
+  --count 20 \
+  --output-dir artifacts/codex/generate
+
+uv run promptbeat eval \
+  --config artifacts/codex/generate/generated_redteam.yaml \
+  --provider-file providers.codex-sdk.yaml \
+  --output-dir artifacts/codex/eval
+```
+
+## Credential handling
+
+<Warning>
+Provider YAML files are logged in Promptbeat artifacts. Any credential written directly into a provider file will appear in your evaluation output. Never commit API keys to a provider file.
+</Warning>
+
+Use environment variables for all credentials. Reference them in provider YAML with the `{{env.VAR_NAME}}` syntax — Promptbeat substitutes the value at runtime and never writes the literal key into generated files.
+
+| Environment variable | Used by |
+|---|---|
+| `OPENAI_API_KEY` | OpenAI LLM providers and the Codex SDK provider |
+| `ANTHROPIC_API_KEY` | Anthropic and Claude model providers |
+| `GOOGLE_API_KEY` | Gemini model providers |
+| `AGENT_EVAL_TOKEN` | HTTP agent providers (any name you choose) |
+| `OPENCLAW_API_KEY` | OpenClaw gateway provider |
+
+Set variables in your shell before running Promptbeat:
+
+```bash
+export OPENAI_API_KEY="sk-..."
+export ANTHROPIC_API_KEY="sk-ant-..."
+export GOOGLE_API_KEY="AIza..."
+```
+
+For the Codex SDK provider specifically, prefer an explicit `cli_env` allowlist over `inherit_process_env: true` in production. The allowlist passes only the variables Codex needs, rather than the entire invoking shell environment:
+
+```yaml
+    config:
+      inherit_process_env: false
+      cli_env:
+        OPENAI_API_KEY: '{{env.OPENAI_API_KEY}}'
+        CODEX_HOME: ./sample-codex-home
+```
+
+## Multiple providers
+
+Run a multi-provider comparison by listing more than one provider in a single file or by passing `--provider-file` more than once. Promptbeat routes each generated probe to all listed providers and writes a combined report that shows pass rates side by side.
+
+```yaml providers.comparison.yaml
+providers:
+  - id: openai:codex-sdk
+    label: Codex gpt-5.4
+    config:
+      model: openai/gpt-5.4
+      working_dir: agent-workspace
+      sandbox_mode: read-only
+      approval_policy: never
+      inherit_process_env: true
+
+  - id: anthropic:claude-agent-sdk
+    label: Claude Code adapter
+    config:
+      model: claude-3-5-sonnet-latest
+      working_dir: agent-workspace
+      approval_policy: never
+      sandbox_mode: read-only
+      collect_trace: true
+      trace_output: artifacts/claude-code-trace.jsonl
+      env:
+        ANTHROPIC_API_KEY: '{{env.ANTHROPIC_API_KEY}}'
+```
+
+```bash
+uv run promptbeat eval \
+  --config artifacts/coding-agent/generate/generated_redteam.yaml \
+  --provider-file providers.comparison.yaml \
+  --output-dir artifacts/comparison/eval
+```
+
+The generated probes are the same for every provider in the comparison. Only the eval step changes, which means differences in the report reflect real differences in agent behavior — not differences in the probes.
+
+<Tip>
+Keep provider files in version control so your target configs are auditable and reproducible. Add any `.env` files that contain real credentials to `.gitignore`. If you use a secrets manager, reference its export format in your shell setup script rather than in the provider YAML.
+</Tip>

@@ -1,0 +1,55 @@
+---
+title: "Typical Agent Application Targets and Readiness Status"
+sidebarTitle: "Agent Apps"
+description: "Readiness levels for every supported agent app type — from runnable Codex targets to adapter-pattern browser, support, data, and DevOps agents."
+---
+
+Promptbeat is designed to make real agent applications visible as test targets. This page lists the agent app types, their current readiness level, and how to connect each one. A target is useful when it has a concrete invocation contract, a workspace or service environment, a trace output, and assertions that can turn agent behavior into a pass/fail result. Validation evidence is tracked separately from documented support.
+
+## Readiness levels
+
+| Level | Meaning | What you can do right now |
+|---|---|---|
+| **Runnable now** | A checked-in example exists with a saved end-to-end report. | Copy the example, provide credentials, run `generate` and `eval`, inspect artifacts. |
+| **Adapter pattern** | A YAML provider template is available and the contract is documented. | Supply the endpoint, CLI binary, gateway, or workspace; Promptbeat handles scenarios, generation, and reports. |
+| **Roadmap** | Designed for but no stable provider or adapter contract documented yet. | Do not list as a supported target until a provider file and example exist. |
+
+## Coding agents
+
+These are the primary targets for Promptbeat's coding-agent scenario suite, which covers secret handling, sandbox boundary enforcement, terminal injection, repository injection, and egress control.
+
+| Agent | Provider string | Status | Notes |
+|---|---|---|---|
+| Codex SDK | `openai:codex-sdk` | Runnable now | Validated through the saved Promptbeat broad Codex report in `examples/codex_agent/artifacts`. |
+| Codex app-server | `openai:codex-app-server` | Adapter pattern | Use when app-server events and approval requests matter alongside the standard CLI flow. |
+| Claude Agent SDK | `anthropic:claude-agent-sdk` | Adapter pattern | Requires a local or container Claude Code runtime, credentials, workspace, and trace capture. |
+| OpenCode | `opencode:sdk` | Adapter pattern | Can start an OpenCode runtime or connect to an existing server. Supply `OPENCODE_MODEL` and `OPENCODE_BASE_URL`. |
+| OpenClaw | `openclaw:agent:main` | Adapter pattern | Requires a running OpenClaw gateway URL, API key, and agent ID. |
+| Custom CLI agent | Custom / script provider | Adapter pattern | Wrap any CLI coding agent with a script provider or Inspect solver that returns a final answer and trace. |
+
+## Application agents
+
+Beyond coding agents, the same target abstraction covers any agent that exposes a REST endpoint or can be wrapped in a provider adapter.
+
+| Agent class | Provider / adapter | Status | Notes |
+|---|---|---|---|
+| Browser agent | HTTP or custom provider; Target Lab browser adapter | Adapter pattern | Use Target Lab when Promptbeat needs to own browser startup, page seeding, and DOM trace capture. |
+| Customer support agent | `http` provider, OpenAI Agents wrapper, or custom provider | Adapter pattern | Requires tenant and user fixtures, tool call records, and an action audit log. |
+| Data analysis agent | Python/JavaScript custom provider, notebook runner, or Inspect solver | Adapter pattern | Capture SQL queries, notebook cells, generated files, and the final answer as trace evidence. |
+| DevOps agent | Script or custom provider; Target Lab adapter | Adapter pattern | Run only against dry-run or disposable cloud environments. Capture commands, API calls, and diff plans. |
+| Security triage agent | HTTP or custom provider connected to SIEM/ticketing backend | Roadmap | No stable contract documented yet. Do not list as a supported target until a provider file exists. |
+
+## Target-ready checklist
+
+Before you run `promptbeat eval` against a new target, confirm all of the following:
+
+- **Expose a final answer** — the target's response must be a string that the judge can score.
+- **Capture trace evidence when possible** — return tool calls, commands, file reads/writes, network events, and policy decisions alongside the answer.
+- **Expose a reset or setup mechanism for stateful agents** — multi-turn or workspace-based agents need a clean starting state for each probe; document the reset path in your provider config.
+- **Keep credentials out of provider YAML** — use `{{env.VAR_NAME}}` references; never commit keys to the file.
+- **Point `working_dir` at a safe fixture workspace** — not your production repository.
+- **Document which scenario risk types the target supports** — so you can filter scenarios to the capabilities the agent actually has.
+
+<Tip>
+Start with the HTTP adapter pattern for any agent that already has a REST API — it works out of the box with `providers.http.yaml`, and you can add trace metadata to the JSON response incrementally. See [Agent Configuration Examples](/targets/agent-configuration-examples) for a complete HTTP walkthrough.
+</Tip>

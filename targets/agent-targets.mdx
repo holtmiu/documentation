@@ -1,0 +1,51 @@
+---
+title: "Supported AI Agent Target Types in Promptbeat Evals"
+sidebarTitle: "Agent Targets"
+description: "Promptbeat supports LLM providers, HTTP agents, Codex SDK, Claude Code, OpenClaw, and an adapter pattern for any agent runtime you already run."
+---
+
+Promptbeat treats AI agents as first-class targets. A target is the real system under test — not a mock or a simulation. Every probe Promptbeat generates is delivered to a live agent invocation, and every result is captured, judged, and written to a report. You choose the target; Promptbeat handles scenario routing, adversarial generation, trace collection, and scoring.
+
+## Target types
+
+Use the table below to find the provider string for the target you want to evaluate, check its current status, and jump to the relevant example.
+
+| Target | Provider string | Status | Notes |
+|---|---|---|---|
+| Codex SDK | `openai:codex-sdk` | Validated | Runnable example with a saved report in `examples/codex_agent/`. |
+| OpenAI LLM | `openai:<model>` | Validated | Standard Promptfoo OpenAI provider. |
+| Anthropic LLM | `anthropic:<model>` | Validated | Standard Promptfoo Anthropic provider. |
+| Gemini | `google:<model>` | Validated | Standard Promptfoo Google provider. |
+| HTTP agent | `http:<endpoint>` | Validated (generic adapter) | Works for any agent exposed as a REST endpoint. |
+| Claude Code | `anthropic:claude-agent-sdk` | Adapter template | YAML template in `examples/agent-adapters/claude-code/`. Connect your runtime. |
+| OpenCode | `opencode:sdk` | Adapter template | YAML template in `examples/agent-adapters/opencode/`. Connect your runtime. |
+| OpenClaw | `openclaw:agent:main` | Adapter template | YAML template in `examples/agent-adapters/openclaw/`. Requires a running gateway. |
+
+## The adapter contract
+
+Every target — validated or adapter template — must satisfy the same contract. Promptbeat sends a prompt and expects the target to return:
+
+- **Final answer** — the agent's textual response that Promptbeat's judge will score.
+- **Trace evidence** (strongly recommended) — structured metadata that makes the report actionable.
+
+Trace evidence includes any subset of the following that your agent runtime can produce:
+
+| Evidence type | Examples |
+|---|---|
+| Shell commands | `printenv`, `cat /etc/passwd`, git commands |
+| Tool calls | Function name, arguments, return value |
+| File reads / writes | Paths accessed, diff snippets |
+| Network events | Outbound URLs, DNS lookups |
+| Policy decisions | `deny_cross_user_access`, sandbox refusal messages |
+
+A target that returns only a final answer still produces a usable report — Promptbeat can score the answer text alone. A target that also returns trace evidence produces a stronger report because the judge can evaluate *what the agent did*, not just *what it said*.
+
+## Validated vs adapter template
+
+**Validated** means the target has a runnable end-to-end example in this repository with a real `promptbeat generate` and `promptbeat eval` run and a saved output report. You can copy the example, supply your credentials, and reproduce the result today.
+
+**Adapter template** means the provider YAML is ready and the contract is documented, but the file is a template you fill in once you connect it to a real runtime. The template tells Promptbeat exactly how to call the agent; you supply the gateway URL, container, CLI binary, or service credentials. After your first successful `promptbeat eval` run with real artifacts, the target becomes validated in your environment.
+
+<Note>
+See [Typical Agent Apps](/targets/typical-agent-apps) for a full readiness table covering coding agents, application agents, and the target-ready checklist. See [Codex SDK](/targets/codex-sdk) for the validated Codex end-to-end path, including field reference and baseline config.
+</Note>

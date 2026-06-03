@@ -1,0 +1,158 @@
+---
+title: "Promptbeat CLI: Complete Four-Command Pipeline Guide"
+sidebarTitle: "CLI Reference"
+description: "Run validate, generate, eval, and report from the CLI using --config, --provider-file, --generator-provider, --count, --output-dir, and --output."
+---
+
+The Promptbeat CLI has four commands that cover the complete evaluation pipeline. You can invoke them using the packaged binary or via `uv run` in a Python environment.
+
+## Invocation
+
+Promptbeat ships as a self-contained binary. Use either invocation style depending on your setup:
+
+<CodeGroup>
+
+```bash Binary
+./bin/promptbeat <command> [flags]
+```
+
+```bash uv run
+uv run promptbeat <command> [flags]
+```
+
+</CodeGroup>
+
+All examples below use the binary form. Substitute `uv run promptbeat` for `./bin/promptbeat` if you are working inside a Python environment.
+
+---
+
+## validate
+
+The `validate` command checks your configuration files for correctness without running generation or evaluation. Use it to catch problems early — before spending time or API credits on a generate run.
+
+**What it checks:**
+- Target reachability and profile validity
+- Scenario field completeness and risk type references
+- Seed quality and framing style consistency
+
+### Flags
+
+<ParamField query="--config" type="string" required>
+  Path to your `promptbeat.yaml` project config file.
+</ParamField>
+
+### Example
+
+<CodeGroup>
+
+```bash Binary
+./bin/promptbeat validate --config examples/llm-basic/promptbeat.yaml
+```
+
+```bash uv run
+uv run promptbeat validate --config examples/llm-basic/promptbeat.yaml
+```
+
+</CodeGroup>
+
+<Tip>
+  Run `validate` before every `generate` call to catch YAML syntax errors, missing fields, and invalid risk type references before they consume API credits.
+</Tip>
+
+---
+
+## generate
+
+The `generate` command uses an LLM generator to expand your seed files into a full set of adversarial probes. It writes the result to a `generated_redteam.yaml` file in the output directory you specify.
+
+### Flags
+
+<ParamField query="--config" type="string" required>
+  Path to your `promptbeat.yaml` project config file.
+</ParamField>
+
+<ParamField query="--provider-file" type="string">
+  Path to a provider YAML file that defines the target agent or model adapter. Required when the adapter config is stored separately from the main project config.
+</ParamField>
+
+<ParamField query="--generator-provider" type="string">
+  Provider string for the LLM that generates adversarial probes, e.g. `openai:openai/gpt-5.5`. Overrides the `generation.generator_provider` field in `promptbeat.yaml`.
+</ParamField>
+
+<ParamField query="--count" type="integer">
+  Number of adversarial probes to generate per seed. Overrides the count in the project config.
+</ParamField>
+
+<ParamField query="--output-dir" type="string">
+  Directory where Promptbeat writes `generated_redteam.yaml` and supporting artifacts. Created if it does not exist.
+</ParamField>
+
+### Example
+
+```bash
+export OPENAI_API_KEY="sk-..."
+
+./bin/promptbeat generate \
+  --config examples/codex_agent/promptbeat.yaml \
+  --provider-file examples/codex_agent/providers.codex-sdk.yaml \
+  --generator-provider openai:openai/gpt-5.5 \
+  --count 5 \
+  --output-dir artifacts/generate
+```
+
+After generation completes, `artifacts/generate/generated_redteam.yaml` contains the expanded probe set ready for evaluation.
+
+---
+
+## eval
+
+The `eval` command runs the generated probes against your real target — the live model or agent. It reads the `generated_redteam.yaml` produced by `generate` and writes a structured `evaluation_result.json` to the output directory.
+
+### Flags
+
+<ParamField query="--config" type="string" required>
+  Path to the `generated_redteam.yaml` file produced by the `generate` command.
+</ParamField>
+
+<ParamField query="--provider-file" type="string">
+  Path to the provider YAML file that defines your target. Use the same file you passed to `generate`.
+</ParamField>
+
+<ParamField query="--output-dir" type="string">
+  Directory where Promptbeat writes `evaluation_result.json` and trace artifacts. Created if it does not exist.
+</ParamField>
+
+### Example
+
+```bash
+./bin/promptbeat eval \
+  --config artifacts/generate/generated_redteam.yaml \
+  --provider-file examples/codex_agent/providers.codex-sdk.yaml \
+  --output-dir artifacts/eval
+```
+
+---
+
+## report
+
+The `report` command reads the `evaluation_result.json` from an eval run and generates a human-readable HTML report. You can also produce Markdown output for embedding in CI pipelines or wikis.
+
+### Flags
+
+<ParamField query="--eval-result" type="string" required>
+  Path to the `evaluation_result.json` file produced by the `eval` command.
+</ParamField>
+
+<ParamField query="--output" type="string">
+  Output file path for the generated HTML report. Defaults to `report.html` in the current directory.
+</ParamField>
+
+### Example
+
+```bash
+./bin/promptbeat report \
+  --eval-result artifacts/eval/evaluation_result.json \
+  --output artifacts/report.html
+```
+
+Open `artifacts/report.html` in a browser to review findings by scenario, risk type, and individual probe.

@@ -1,0 +1,153 @@
+---
+title: "Dataset Catalog: Readiness and Risk Mapping"
+sidebarTitle: "Catalog"
+description: "All 15 supported datasets with readiness levels, field mappings, and risk taxonomy fit — choose the right seed source and understand provenance before your evaluation run."
+---
+
+The dataset catalog lists every dataset Promptbeat can use as a seed source, its readiness level, and how it maps to the Promptbeat risk taxonomy. Use this page to choose the right starting dataset for your evaluation, confirm the local file format you need to provide, and understand how raw category labels translate into scenario risk types before you run.
+
+## Readiness levels
+
+Promptbeat uses a four-level readiness model. A dataset advances through levels as its plumbing is validated end-to-end.
+
+<Steps>
+  <Step title="Local raw file">
+    The dataset file exists under `$PROMPTBEAT_DATASETS_DIR` in the expected format. This is the minimum prerequisite — nothing runs without the raw file in place.
+  </Step>
+  <Step title="Catalog spec">
+    A `DatasetSpec` exists that maps the prompt, ID, and category fields. Records can be loaded into typed `Seed` objects but may not yet have a risk mapping.
+  </Step>
+  <Step title="Risk mapping">
+    Source categories map into Promptbeat risk types via a `DatasetRiskMapping`. Seeds from this dataset can be routed to the right scenario and judge.
+  </Step>
+  <Step title="Validated slice">
+    A saved eval result exists for at least one slice of this dataset. Use validated datasets for regressions and as evidence in reports.
+  </Step>
+</Steps>
+
+In the catalog below, **Ready** means catalog spec and risk mapping are done and at least one slice has been validated. **Partial** means the catalog spec exists but some slices still need mapping work or additional filters. **Planned** means the dataset is on the roadmap but not yet integrated.
+
+## Dataset catalog
+
+<Note>
+  All datasets require you to download raw files locally. Check each dataset's license and redistribution rules before use.
+</Note>
+
+| Dataset | Risk categories covered | Readiness | Notes |
+|---|---|---|---|
+| **HarmBench** | Harmful content, cyber, chemical/biological | ✅ Ready | Local raw CSV. Catalog spec, risk mapping, and validated 5-case Codex slice. |
+| **XSTest** | Exaggerated-safety and refusal calibration | 🔶 Partial | Catalog spec. Covers benign prompts that trigger over-refusal. |
+| **Forbidden Questions** | Harmful content, policy compliance | 🔶 Partial | Catalog spec. Requires taxonomy mapping before mixing into shared reports. |
+| **SimpleSafetyTests** | Lightweight safety smoke tests | 🔶 Partial | Catalog spec. Small set; good for baseline sanity checks alongside larger sources. |
+| **OR-Bench (deception slice)** | Deception, unsafe persuasion | 🔶 Partial | Catalog spec with deception category filter applied at load time. |
+| **ALERT** | Broad safety categories | 🔶 Partial | Catalog spec. Requires instruction-wrapper cleanup during loading. JSONL format. |
+| **Aya red-teaming** | Multilingual red-teaming | 🔶 Partial | Catalog spec. Covers non-English harmful-content and jailbreak scenarios. JSONL format. |
+| **Aegis (unsafe slice)** | Unsafe prompt classification | 🔶 Partial | Catalog spec with unsafe-label filter. JSON format with `violated_categories` field. |
+| **ToxicChat (jailbreak slice)** | Jailbreak instruction override | 🔶 Partial | Catalog spec with `jailbreaking=true` filter. CSV with `conv_id` as ID field. |
+| **JailbreakBench (JBB) behaviors** | Jailbreak behavior seeds | 🔶 Partial | Catalog spec. CSV with `Index` as ID field and `Category` for risk routing. |
+| **JADE-DB (Chinese)** | Chinese harmful-content, jailbreak | 🔶 Partial | Catalog spec with easy/medium file split. Chinese-language fields (`问题`, `违规类型`). |
+| **BeaverTails (unsafe slice)** | Harmfulness preference prompts | 🔶 Partial | Catalog spec with unsafe-label filter. JSONL.GZ format; ID generated at load time. |
+| **Do-Not-Answer** | Refusal and safety policy categories | 🔶 Partial | Catalog spec. Parquet format; requires `pyarrow` or `pandas` with parquet support. |
+| **SALAD-Bench base** | Misinformation | 🔶 Partial | Catalog spec with misinformation category filter. Parquet format. |
+| **SALAD-Bench attack** | Adversarial misinformation | 🔶 Partial | Catalog spec with misinformation category filter. Adversarial attack variants. Parquet format. |
+
+### Field mapping reference
+
+| Dataset | Format | Prompt field | ID field | Category field |
+|---|---|---|---|---|
+| HarmBench | CSV | `Behavior` | `BehaviorID` | `SemanticCategory` |
+| XSTest | CSV | `prompt` | `id_v2` | `type` |
+| Forbidden Questions | CSV | `question` | `q_id` | `content_policy_name` |
+| SimpleSafetyTests | CSV | `prompt` | `id` | `harm_area` |
+| OR-Bench | CSV | `prompt` | *(generated)* | `category` |
+| ALERT | JSONL | `prompt` | `id` | `category` |
+| Aya red-teaming | JSONL | `prompt` | *(generated)* | `harm_category` |
+| Aegis | JSON | `prompt` | `id` | `violated_categories` |
+| ToxicChat | CSV | `user_input` | `conv_id` | `jailbreaking` |
+| JBB behaviors | CSV | `Goal` | `Index` | `Category` |
+| JADE-DB | CSV | `问题` | `ID` | `违规类型` |
+| BeaverTails | JSONL.GZ | `prompt` | *(generated)* | `category` |
+| Do-Not-Answer | Parquet | `question` | `id` | `risk_area` |
+| SALAD-Bench base | Parquet | `prompt` | *(generated)* | `categories` |
+| SALAD-Bench attack | Parquet | `prompt` | *(generated)* | `categories` |
+
+## Minimum DatasetSpec YAML
+
+Every dataset must have an explicit `DatasetSpec` before it can enter an evaluation. The spec below shows the minimum required fields. Add `metadata_fields` to preserve extra columns for audit and reporting.
+
+```yaml
+datasetSpec:
+  name: harmbench
+  path: datasets/raw/harmbench/harmbench_behaviors_text_all.csv
+  format: csv
+  prompt_field: Behavior
+  id_field: BehaviorID
+  category_field: SemanticCategory
+  metadata_fields:
+    - FunctionalCategory
+    - Tags
+    - ContextString
+```
+
+Adapt the `name`, `path`, `format`, and field names to match each dataset's actual columns. For datasets without a natural ID column (marked *generated* in the table above), Promptbeat generates a stable hash ID from the prompt text at load time.
+
+## Risk taxonomy mapping
+
+Raw dataset category labels are not sufficient on their own. You must map them into Promptbeat risk types so the pipeline knows which scenario and judge to apply. Define a `DatasetRiskMapping` for each dataset you use.
+
+```yaml
+datasetRiskMapping:
+  datasetId: harmbench
+  taxonomySystem: harmbench
+  unmappedPolicy: skip
+  rules:
+    - sourceCategory:
+        SemanticCategory: chemical_biological
+      riskType: harmful_content
+      scenarioIds:
+        - direct-harmful-content-refusal
+    - sourceCategory:
+        SemanticCategory: cyber
+      riskType: harmful_content
+      scenarioIds:
+        - cyber-harmful-content-refusal
+```
+
+The same source dataset can feed multiple scenarios with different risk types. For example, JBB behaviors can route `injection` category records to `prompt_injection` and `tool-use` category records to `tool_misuse`:
+
+```yaml
+datasetRiskMapping:
+  datasetId: jbb_behaviors
+  taxonomySystem: jailbreakbench
+  rules:
+    - sourceCategory:
+        Category: injection
+      riskType: prompt_injection
+      scenarioIds:
+        - coding-agent-repo-injection
+        - browser-dom-injection
+    - sourceCategory:
+        Category: tool-use
+      riskType: tool_misuse
+      scenarioIds:
+        - devops-unsafe-tool-use
+```
+
+Set `unmappedPolicy: skip` to silently drop records whose category has no rule, or `unmappedPolicy: error` to fail loudly if a record slips through unmapped.
+
+## Recommended starting order
+
+Start narrow and validate your dataset plumbing before expanding to more sources.
+
+1. **HarmBench small slice** — validates harmful-content refusal and confirms the full dataset pipeline is working end-to-end.
+2. **SimpleSafetyTests or XSTest** — validates refusal calibration and adds false-positive pressure to catch over-refusal.
+3. **JBB behaviors or ToxicChat jailbreak slice** — validates jailbreak-style prompt-injection seeds.
+4. **JADE-DB** — validates Chinese-language scenarios and downstream taxonomy mapping.
+5. **BeaverTails or Do-Not-Answer** — broadens harmful-content coverage with preference and policy-category data.
+6. **Agent-specific fixtures** — combine dataset seeds with repo files, browser DOM pages, support tickets, or DevOps environments for real agent safety coverage.
+
+The `safety-baseline` subscription in `subscriptions/safety-baseline.yaml` covers steps 1 and 5 out of the box — HarmBench, JBB, Do-Not-Answer, SimpleSafetyTests, and BeaverTails at 20 records each.
+
+<Note>
+  See the [HarmBench guide](/datasets/harmbench) for a fully worked example that includes the Python `DatasetSeedLoader` code, the complete seed shape, risk mapping YAML, and exact `validate` and `eval` run commands.
+</Note>

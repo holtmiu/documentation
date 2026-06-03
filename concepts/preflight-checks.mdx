@@ -1,0 +1,96 @@
+---
+title: "Preflight Checks Before Running an Evaluation"
+sidebarTitle: "Preflight Checks"
+description: "Learn the preflight checks Promptbeat runs before generate and eval — what each check tests, how to read output, and how to fix common failures."
+---
+
+Before launching `generate` or `eval`, Promptbeat runs a set of preflight checks that catch configuration problems, unreachable targets, and quality issues before they waste a full evaluation run. Agent evaluations can be expensive in both time and API cost, so catching a misconfigured provider or a thin seed file early is far better than discovering the problem halfway through a large run.
+
+## What preflight checks
+
+Promptbeat validates five categories of configuration before it allows a run to proceed:
+
+### Target reachability
+
+Promptbeat verifies that the configured target provider is reachable and correctly authenticated:
+
+- Is the provider ID valid and supported?
+- Is the API key present in the environment and does it have access to the specified model?
+- For agent targets: does `working_dir` exist and is it accessible?
+- For Codex and other CLI agents: does the agent binary have the correct home or config path set?
+
+### Scenario quality
+
+Promptbeat checks that each scenario in `scenarios.yaml` is well-formed and usable:
+
+- Does the scenario declare a `risk_type`?
+- Are `failure_signals` explicit enough to guide the judge?
+- Does the scenario match at least one of the target's declared capabilities?
+- Do the referenced judge IDs exist and match the expected evidence level?
+
+### Seed quality
+
+Promptbeat reviews the seed file for coverage and focus:
+
+- Does each seed's `risk_type` match at least one scenario?
+- Does each seed declare `required_capabilities`?
+- Are the seeds varied enough in framing style to produce diverse probes?
+- Is dataset category mapping preserved in seed metadata when dataset-backed seeds are used?
+
+### Execution quality
+
+Promptbeat checks that the execution environment matches the target's requirements:
+
+- Is `sandbox_mode` set appropriately for the risks being tested?
+- Is `approval_policy` configured for reproducible, non-interactive runs?
+- Is tracing enabled at the depth needed for the scenario's evidence requirements?
+- Is environment inheritance restricted to only what the agent needs?
+
+### Generation size warnings
+
+Promptbeat estimates the total probe count before generation begins:
+
+- Promptfoo's `--count` flag applies per plugin. A scenario with 8 plugins and `--count 16` produces up to 128 probes.
+- If the estimated count exceeds a reasonable bound, Promptbeat warns you and suggests using a sampler for broad runs.
+
+## Running the validate command
+
+Run `validate` explicitly before any `generate` or `eval` call, especially after editing config files:
+
+```bash
+./bin/promptbeat validate --config examples/codex_agent/promptbeat.yaml
+```
+
+You can also validate against the llm-basic example to check a simpler setup:
+
+```bash
+./bin/promptbeat validate --config examples/llm-basic/promptbeat.yaml
+```
+
+The command prints a structured summary of all checks, their status, and any messages.
+
+## Interpreting preflight output
+
+Preflight results appear at two severity levels:
+
+| Severity | Meaning | Effect on execution |
+|---|---|---|
+| **Warning** | A potential quality or cost issue was detected, but the configuration is technically valid | Execution is **not** blocked — Promptbeat proceeds after displaying the warning |
+| **Error** | A required configuration element is missing, invalid, or unreachable | Execution is **blocked** — you must fix the error before the run can proceed |
+
+Treat warnings seriously even though they don't block execution. A seed file with only one entry, or a scenario with vague failure signals, will produce an evaluation that is harder to interpret and less likely to find real failures.
+
+## Common preflight failures
+
+| Failure | Cause | Fix |
+|---|---|---|
+| **Target unreachable** | API key is missing from the environment, the wrong provider ID is set, or the model name is not accessible with the current key | Export the correct environment variable (e.g., `export OPENAI_API_KEY=sk-...`) and verify the provider ID in `promptbeat.yaml` matches a supported format |
+| **Scenario missing risk type** | A scenario entry in `scenarios.yaml` does not have a `risk_type` field | Add `risk_type` to every scenario; see the [Risk Taxonomy](/concepts/risk-taxonomy) for the list of valid values |
+| **Seed count too low** | `seeds.yaml` contains fewer seeds than the minimum recommended for diverse generation | Add more hand-written seeds, or subscribe to a dataset to augment coverage — see [Datasets](/datasets/overview) |
+| **Generation size too large** | The combination of plugin count and `--count` flag will produce more probes than your budget allows | Reduce the `--count` flag, reduce the number of active scenarios, or add a sampler configuration to cap the total probe count |
+| **Working directory not found** | The `working_dir` path in the provider config does not exist at validation time | Create the directory, or correct the path in `providers.yaml` to point to an existing workspace |
+| **Scenario capability mismatch** | A scenario requires a capability the target does not declare | Either add the capability to `target.yaml` if the target genuinely has it, or remove the scenario from the run |
+
+<Tip>
+Always run `promptbeat validate` before `promptbeat generate`, especially when you have just edited `target.yaml`, `scenarios.yaml`, or `seeds.yaml`. A two-second validation check can save you from discovering a broken config after a twenty-minute generation run.
+</Tip>

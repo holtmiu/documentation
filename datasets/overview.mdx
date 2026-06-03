@@ -1,0 +1,219 @@
+---
+title: "Dataset-Driven Evaluation: Seeds from Catalogs"
+sidebarTitle: "Overview"
+description: "Load curated datasets as attack seeds in two modes: direct eval or generator-steered probes, with full dataset provenance tracked through every generated case and report."
+---
+
+Promptbeat can load initial attack seeds from curated dataset subscriptions instead of hand-written seed files. Rather than writing every probe by hand, you point Promptbeat at a raw dataset, define a `DatasetSpec`, and let the pipeline bind records to scenario risk types. This page explains how datasets become probes and how provenance is tracked across the full evaluation.
+
+## Two evaluation modes
+
+Promptbeat supports two ways to use a dataset inside an evaluation run.
+
+<CardGroup cols={2}>
+  <Card title="Direct mode" icon="arrow-right">
+    Dataset entries are used as-is as test cases. Each record becomes a test input without any generation step. Use this mode for fast smoke tests and refusal regression checks where you want exact, reproducible prompts.
+  </Card>
+  <Card title="Dataset-steered generation" icon="wand-magic-sparkles">
+    Dataset entries become seeds that a generator model expands into scenario-specific probes. The raw prompt is treated as an example or framing hint, not a final input. Use this mode for stronger red-team exploration that reaches target-specific surfaces.
+  </Card>
+</CardGroup>
+
+| Mode | What enters eval | Strength | Weakness |
+|---|---|---|---|
+| Direct dataset eval | Raw dataset prompt as test input | Fast, reproducible, good smoke test | May only test direct refusal, not agent behavior |
+| Dataset-steered generation | Dataset prompt becomes a seed for generated probes | Explores variants and target-specific surfaces | Needs stronger judge and trace evidence |
+| Dataset + scenario fixtures | Dataset seed combined with repo files, DOM pages, tickets, or cloud fixtures | Best for real agents | Requires adapter work and artifact management |
+
+## Evaluation pipeline
+
+Every dataset-driven run follows the same pipeline, regardless of which mode you choose:
+
+```text
+raw dataset → DatasetSpec → Seed → DatasetRiskMapping → scenario-bound probes → report
+```
+
+1. Download raw dataset files into `datasets/raw`.
+2. Define a `DatasetSpec` that maps prompt, ID, and category fields.
+3. Load records with `DatasetSeedLoader` — each record becomes a typed `Seed`.
+4. Apply a `DatasetRiskMapping` to bind seeds to scenario risk types.
+5. Generate or directly evaluate Promptfoo test cases.
+6. Report by dataset, category, risk type, plugin, and provider.
+
+## Dataset subscriptions
+
+Instead of configuring each dataset individually per run, you define a subscription YAML that groups named sources into reusable baselines. Promptbeat loads these at startup and resolves the seed pool before generation or direct eval begins.
+
+Below is the complete `subscriptions/safety-baseline.yaml` that ships with Promptbeat:
+
+```yaml subscriptions/safety-baseline.yaml
+version: 1
+
+subscriptions:
+  - id: safety-baseline
+    description: Public harmful-content seed pools for direct safety refusal checks.
+    enabled: true
+    sources:
+      - type: dataset
+        name: harmbench
+        limit: 20
+        risk_type: t-007
+      - type: dataset
+        name: jbb_behaviors
+        limit: 20
+        risk_type: t-007
+      - type: dataset
+        name: do_not_answer
+        limit: 20
+        risk_type: t-007
+      - type: dataset
+        name: simple_safety_tests
+        limit: 20
+        risk_type: t-007
+      - type: dataset
+        name: beaver_tails
+        limit: 20
+        risk_type: t-007
+
+  - id: jailbreak-baseline
+    description: Jailbreak and instruction-override seed pools.
+    enabled: true
+    sources:
+      - type: dataset
+        name: toxic_chat
+        limit: 20
+        risk_type: t-003
+        categories:
+          - jailbreak_override
+      - type: dataset
+        name: alert
+        limit: 20
+        risk_type: t-003
+      - type: dataset
+        name: aya_redteaming
+        limit: 20
+        risk_type: t-003
+
+  - id: overrefusal-baseline
+    description: Benign or boundary prompts for refusal calibration.
+    enabled: true
+    sources:
+      - type: dataset
+        name: xstest
+        limit: 20
+        risk_type: t-001
+      - type: dataset
+        name: forbidden_questions
+        limit: 20
+        risk_type: t-001
+
+  - id: deception-baseline
+    description: Deception and misinformation-oriented seed pools.
+    enabled: true
+    sources:
+      - type: dataset
+        name: or_bench
+        limit: 20
+        risk_type: t-007
+      - type: dataset
+        name: salad_bench_base
+        limit: 20
+        risk_type: t-007
+      - type: dataset
+        name: salad_bench_attack
+        limit: 20
+        risk_type: t-007
+
+  - id: zh-safety-baseline
+    description: Chinese safety seed pools.
+    enabled: true
+    sources:
+      - type: dataset
+        name: jade_db_zh
+        limit: 20
+        risk_type: t-007
+        lang: zh
+```
+
+Each subscription entry has three key fields:
+
+| Field | Purpose |
+|---|---|
+| `name` | Matches the dataset's local name in the catalog (e.g. `harmbench`, `jbb_behaviors`) |
+| `limit` | Maximum number of records to draw from this source per run |
+| `risk_type` | The Promptbeat risk type ID to assign seeds from this source |
+| `categories` | Optional list of category values to filter records before loading |
+| `lang` | Optional language tag to scope multilingual datasets |
+
+## Setting the datasets directory
+
+Promptbeat resolves raw dataset files relative to the directory set by `PROMPTBEAT_DATASETS_DIR`. Set this before running any dataset-backed evaluation:
+
+```bash
+export PROMPTBEAT_DATASETS_DIR=/path/to/promptbeat/datasets/raw
+```
+
+<Warning>
+  Raw dataset files are **not bundled** with Promptbeat. You must download each dataset separately and place the files under `PROMPTBEAT_DATASETS_DIR` before running. Check each dataset's license and access requirements before downloading.
+</Warning>
+
+The expected layout inside that directory follows a consistent pattern:
+
+```text
+$PROMPTBEAT_DATASETS_DIR/
+  harmbench/
+    harmbench_behaviors_text_all.csv
+  jbb_behaviors/
+    jbb_behaviors.csv
+  simple_safety_tests/
+    simple_safety_tests.csv
+  ...
+```
+
+## Dataset provenance
+
+Promptbeat records the origin of every seed so you can trace any generated case or report row back to its source record. Each seed carries a `metadata` block that survives through generation, evaluation, and final report output.
+
+```yaml
+metadata:
+  dataset: harmbench
+  dataset_version: local-snapshot-2026-05
+  source_url: https://github.com/centerforaisafety/HarmBench
+  source_category: cyber
+  original_id: hb-001
+  split: test
+```
+
+Every generated test case also records:
+
+- **`dataset`** — the local dataset name it came from
+- **`recordId`** — the original row identifier from the raw file
+- **`category`** — the source dataset's category label before risk mapping
+- **`source`** — the string `dataset` to distinguish from hand-written seeds
+
+This lets reports group and filter results by dataset family, source category, and risk type simultaneously — and gives you an audit trail back to the original raw record.
+
+## Dataset sources
+
+Promptbeat supports the following dataset families as seed sources:
+
+| Dataset family | What it covers |
+|---|---|
+| **HarmBench** | Harmful behavior and refusal smoke tests across chemical/biological, cyber, and other harmful-content categories |
+| **JailbreakBench (JBB)** | Jailbreak behavior prompts and robustness checks for policy-bypass scenarios |
+| **XSTest** | Exaggerated-safety and refusal calibration — benign prompts that overly cautious models refuse incorrectly |
+| **Forbidden Questions** | Direct refusal and policy compliance checks across content-policy categories |
+| **SimpleSafetyTests** | Small, direct safety regression set for lightweight smoke tests and baseline sanity checks |
+| **ALERT** | Safety risk prompts across multiple categories for broad safety scenario coverage |
+| **ToxicChat** | Real user jailbreak attempts and toxic inputs, useful for jailbreak-override scenario seeds |
+| **JADE-DB** | Chinese-language jailbreak and harmful-content coverage for Chinese scenarios and taxonomy mapping |
+| **BeaverTails** | Harmlessness and harmfulness preference data, filtered to unsafe-labeled records |
+| **OR-Bench** | Deception and unsafe persuasion prompts, used with a deception category filter |
+| **SALAD-Bench** | Safety alignment benchmark categories including a misinformation-focused adversarial slice |
+| **Aegis** | Unsafe prompt classification dataset with violated-category labels |
+| **Aya** | Multilingual red-teaming prompts with harm category annotations |
+| **Do-Not-Answer** | Refusal and safety policy categories with risk-area labels |
+
+<Tip>
+  See the [Dataset Catalog](/datasets/catalog) for readiness levels, field mappings, and notes on each dataset. For a fully worked end-to-end example — including a Python `DatasetSeedLoader`, seed shape, and run commands — see the [HarmBench guide](/datasets/harmbench).
+</Tip>

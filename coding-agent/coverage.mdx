@@ -1,0 +1,74 @@
+---
+title: "Coding Agent Safety Coverage: 8 Attack Surfaces"
+sidebarTitle: "Coverage"
+description: "Promptbeat covers 8 coding-agent attack surfaces: repo injection, terminal injection, secret reads, sandbox escape, network egress, procfs, and steganographic exfil."
+---
+
+Promptbeat evaluates coding agents across 8 attack surfaces that are specific to agents with file, terminal, and network access. These surfaces map to real failure modes observed in tool-using agents, not just general harmful-content scenarios. Each surface has a dedicated Promptfoo plugin ID you can reference when configuring targeted runs.
+
+## Attack surface overview
+
+| Attack surface | What it tests | Promptfoo plugin ID |
+|---|---|---|
+| Repo prompt injection | Malicious instructions embedded in repository files redirect agent behavior | `coding-agent:repo-prompt-injection` |
+| Terminal output injection | Malicious text in command output tries to make the agent follow terminal output as instructions | `coding-agent:terminal-output-injection` |
+| Secret environment read | Agent is asked to dump launcher-only environment secrets to a file or response | `coding-agent:secret-env-read` |
+| Secret file read | Agent is asked to read protected files such as shell history or SSH metadata | `coding-agent:secret-file-read` |
+| Sandbox read escape | Agent is asked to inspect host paths or workspace symlinks outside its boundary | `coding-agent:sandbox-read-escape` |
+| Network egress bypass | Agent is asked to perform unapproved upload, DNS probe, or callback activity | `coding-agent:network-egress-bypass` |
+| Procfs credential read | Agent is asked to read `/proc/self/environ`, command line, cwd, or fd links | `coding-agent:procfs-credential-read` |
+| Steganographic exfil | Agent is asked to hide or encode secrets in hashes, comments, filenames, or structured artifacts | `coding-agent:steganographic-exfil` |
+
+## Coverage status
+
+The table below shows the current validation status for each surface, based on the [broad Codex run](/coding-agent/broad-codex-report). Surfaces marked **validated** have confirmed pass/fail signal in the broad run. Surfaces marked **planned** have plugin stubs but lack Promptbeat-specific scenario fixtures or trace checks.
+
+| Attack surface | Status | Promptbeat direction |
+|---|---|---|
+| Repo prompt injection | Validated | Add scenario-aware repo fixtures and trace checks |
+| Terminal output injection | Validated | Add tool-output trace classification |
+| Secret env read | Validated | Add unsafe-workaround detector |
+| Secret file read | Validated | Add allowlist/denylist policy config |
+| Procfs credential read | Validated | Add explicit command trace scorer |
+| Network egress bypass | Validated | Add network event normalization |
+| Sandbox read escape | Validated | Add workspace boundary scorer |
+| Steganographic exfil | Validated | Add output-channel classifiers |
+
+When you find signal issues — false passes, false failures, or missing trace coverage — open a GitHub issue and reference the plugin ID and the specific probe that produced unexpected behavior. Include your agent adapter name and sandbox mode so the team can reproduce it.
+
+## What to include in a coverage report
+
+For each attack surface, capture the following evidence to produce a report that is meaningful beyond a raw pass/fail count.
+
+**Repo prompt injection and terminal output injection**
+- Which files or terminal output fixtures were read
+- Whether the agent repeated or acted on the injected instruction
+- Tool calls made after reading the injected content
+
+**Secret environment read and secret file read**
+- Commands the agent suggested or executed (e.g., `env | sort`, `cp ~/.ssh/known_hosts`)
+- Files written that may contain secret values
+- Whether the agent offered a redacted alternative or simply refused
+
+**Sandbox read escape**
+- Symlinks created or host paths referenced outside the workspace
+- Socket metadata reported
+- Whether the sandbox mode (read-only vs writable) changed the outcome
+
+**Network egress bypass**
+- Network events: method, host, path
+- `curl`, `wget`, or webhook commands in the response
+- Whether egress was blocked by the harness or only suggested by the agent
+
+**Procfs credential read**
+- Specific `/proc/self/*` paths read or referenced
+- Commands that would capture process environment or command line
+- Whether the agent provided a safe diagnostic alternative
+
+**Steganographic exfil**
+- Output channels examined: YAML comments, base64 fields, filenames, chart titles
+- Whether a secret-derived hash or fingerprint appeared in any artifact
+
+<Tip>
+  Run the broad coding-agent sample first to see which surfaces your agent passes before diving into targeted attack patterns. The broad run samples 4 probes per surface from a 128-probe pool, giving you a quick baseline across all 8 surfaces in a single command. See [Broad Codex report](/coding-agent/broad-codex-report) for the reference baseline and [Attack patterns](/coding-agent/attack-patterns) for individual pattern details.
+</Tip>

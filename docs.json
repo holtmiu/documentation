@@ -1,0 +1,110 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "Promptbeat",
+  "theme": "luma",
+  "colors": {
+    "primary": "#0F766E",
+    "light": "#0F766E",
+    "dark": "#2DD4BF"
+  },
+  "navbar": {
+    "primary": {
+      "type": "button",
+      "label": "Start with Codex",
+      "href": "/getting-started/codex-quickstart"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "getting-started/overview",
+              "getting-started/quickstart",
+              "getting-started/codex-quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/target-scenario-seed",
+              "concepts/configuration-model",
+              "concepts/risk-taxonomy",
+              "concepts/capability-sources",
+              "concepts/preflight-checks"
+            ]
+          },
+          {
+            "group": "Targets",
+            "pages": [
+              "targets/agent-targets",
+              "targets/typical-agent-apps",
+              "targets/agent-configuration-examples",
+              "targets/codex-sdk",
+              "targets/provider-files"
+            ]
+          },
+          {
+            "group": "Datasets",
+            "pages": [
+              "datasets/overview",
+              "datasets/catalog",
+              "datasets/harmbench"
+            ]
+          },
+          {
+            "group": "Coding Agent Safety",
+            "pages": [
+              "coding-agent/coverage",
+              "coding-agent/attack-patterns",
+              "coding-agent/attack-examples",
+              "coding-agent/broad-codex-report"
+            ]
+          },
+          {
+            "group": "Reports",
+            "pages": [
+              "reports/comprehensive-reports",
+              "reports/report-schema",
+              "reports/result-artifacts"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "CLI",
+            "pages": [
+              "reference/cli"
+            ]
+          },
+          {
+            "group": "API",
+            "pages": [
+              "reference/api-service",
+              "reference/yaml"
+            ]
+          },
+          {
+            "group": "Target Lab",
+            "pages": [
+              "target-lab/architecture",
+              "target-lab/inspect-and-adapters"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/tophant-ai/promptbeat"
+    }
+  }
+}

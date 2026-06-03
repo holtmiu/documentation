@@ -1,0 +1,72 @@
+---
+title: "Inspect Integration and Target Lab Environment Adapters"
+sidebarTitle: "Inspect & Adapters"
+description: "Connect Promptbeat to Inspect for benchmark execution. Learn the adapter model, Terminal-Bench integration, and Promptfoo bridge for generated test cases."
+---
+
+Promptbeat integrates with Inspect for controlled benchmark task execution. Inspect provides the environment adapter model that lets Promptbeat run generated cases in reproducible workspaces — giving you real terminal access, hidden test scorers, and structured artifact capture alongside the probe generation and reporting you already get from the core pipeline.
+
+## The adapter model
+
+An Inspect adapter exposes six components. Every adapter you connect to Promptbeat — whether Terminal-Bench, Harbor, or a custom benchmark — must implement all six:
+
+| Component | Responsibility |
+|---|---|
+| **Task instruction** | The natural-language prompt delivered to the agent. Describes what the agent should accomplish without revealing how success is measured. |
+| **Workspace** | The controlled file or directory environment the agent runs in. Seeded with task-specific files, code, or data before each case. |
+| **Setup and reset** | Hooks that prepare the workspace before a case runs and restore it to a clean baseline afterward. Guarantees reproducibility across cases. |
+| **Hidden tests** | Verifier tests invisible to the agent. Run after the agent completes its task to check correctness, forbidden behavior, or workspace state. |
+| **Scorer** | Reads hidden test output and produces a structured pass/fail judgment with supporting evidence. The scorer result feeds into Promptbeat's report. |
+| **Artifact collection** | Captures shell transcripts, file diffs, tool call logs, and scorer output. Promptbeat normalizes these into a common trace contract for reporting. |
+
+The external agent harness — Codex, Claude Code, OpenClaw, or your own agent — attaches to the environment adapter rather than being embedded inside the benchmark runtime. This keeps the agent portable and the benchmark independently reusable.
+
+---
+
+## Terminal-Bench
+
+Terminal-Bench is the first benchmark integrated as a Target Lab adapter. It provides a real terminal environment with programming-assistant tasks, making it a natural fit for evaluating coding agents against instruction-following and safety scenarios.
+
+What Terminal-Bench supplies as an adapter:
+- **Real terminal environment** — the agent runs actual shell commands in a sandboxed workspace.
+- **Task instructions** — structured programming tasks drawn from the Terminal-Bench dataset.
+- **Hidden test scorers** — test suites that verify correctness and detect unsafe behavior without being visible to the agent during execution.
+
+Promptbeat's role in this pipeline is to compile scenario and target information into a form Inspect and the adapter can execute, then normalize the results — terminal transcripts, test outcomes, and scorer judgments — back into Promptbeat's standard report format.
+
+---
+
+## Promptfoo bridge
+
+Promptfoo continues to play a role in Inspect-based evaluations. After the `generate` stage produces adversarial probes, the Promptfoo bridge passes those cases to the Inspect runner and the Target Lab adapter for execution.
+
+Specifically, Promptfoo handles:
+- **Generated red-team cases** — the adversarial probes from `promptbeat generate` become the task instructions fed into the Inspect environment.
+- **Coding-agent assertions** — Promptfoo assertion types apply to agent outputs before they reach the Inspect scorer.
+- **Report compatibility** — results flow back through Promptfoo's reporting layer so you get a unified report alongside any non-Inspect cases in the same evaluation run.
+- **Provider-based targets** — for cases that do not need environment control, Promptfoo's provider bridge handles direct LLM and HTTP targets in the same pipeline.
+
+When Inspect is the runner, Promptbeat bridges Inspect logs, artifacts, and scorer results into the common trace and report contract so the final report covers all evaluation modes in one view.
+
+---
+
+## Writing an adapter
+
+To connect a custom benchmark environment to Promptbeat via Inspect, implement the six adapter components described in the adapter model section above. In practice this means providing:
+
+1. **Setup script** — a script or declarative config that seeds the workspace with the files and services your tasks require.
+2. **Execution interface** — the interface through which Inspect launches the agent and captures its interaction with the environment (shell session, tool call log, API trace).
+3. **Hidden test suite** — test files or a test runner that Inspect invokes after the agent finishes. These must not be visible to the agent at runtime.
+4. **Scorer implementation** — a function or script that reads hidden test results and returns a structured judgment Promptbeat can include in its report.
+5. **Artifact capture config** — declarations for which files, logs, and outputs Inspect should collect and forward to Promptbeat.
+6. **Reset hook** — a teardown step that returns the workspace to its baseline state before the next case runs.
+
+Once your adapter implements all six, register it in your Promptbeat target profile and run `./bin/promptbeat validate` to confirm the configuration is complete.
+
+---
+
+<Note>
+  Inspect integration is designed for advanced use cases that require real environment control. If you are evaluating an LLM or HTTP agent without filesystem or terminal requirements, start with direct Codex SDK or HTTP agent targets — those cover the majority of safety evaluation scenarios with far less setup.
+</Note>
+
+For the broader picture of how Agent App, Environment Adapter, and harness layers fit together, see the [Target Lab Architecture](/target-lab/architecture) page.

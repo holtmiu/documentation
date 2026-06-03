@@ -1,0 +1,76 @@
+---
+title: "Promptbeat: Scenario-Driven AI Security Testing"
+sidebarTitle: "Introduction"
+description: "Promptbeat helps you red-team real AI agents and LLMs with scenario-driven attack generation, trace-aware judging, and reproducible reports."
+---
+
+Promptbeat is a safety evaluation toolkit for AI agents and LLM applications. Instead of running generic prompt lists against a chat endpoint, Promptbeat starts from a **scenario** — a risk situation with defined failure criteria — and generates targeted adversarial probes that run against your real agent in its real environment.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/getting-started/quickstart">
+    Install Promptbeat and run your first evaluation in minutes
+  </Card>
+  <Card title="Codex Quickstart" icon="code" href="/getting-started/codex-quickstart">
+    Full walkthrough using the validated Codex SDK path
+  </Card>
+  <Card title="Core Concepts" icon="book" href="/concepts/target-scenario-seed">
+    Understand targets, scenarios, seeds, and how they fit together
+  </Card>
+  <Card title="Risk Taxonomy" icon="shield" href="/concepts/risk-taxonomy">
+    Ten risk categories covering prompt injection, secret handling, sandbox escape, and more
+  </Card>
+  <Card title="Agent Targets" icon="robot" href="/targets/agent-targets">
+    Connect coding agents, browser agents, support agents, and more
+  </Card>
+  <Card title="CLI Reference" icon="terminal" href="/reference/cli">
+    Complete reference for validate, generate, eval, and report commands
+  </Card>
+</CardGroup>
+
+## How Promptbeat works
+
+Promptbeat follows a four-stage pipeline from scenario definition to evidence-backed report:
+
+```text
+scenario + target profile + seed/dataset
+  → generated adversarial probes
+  → real agent execution with trace capture
+  → trace-aware judging
+  → normalized report with evidence
+```
+
+Each stage is controlled by configuration files you write and version-control alongside your agent. You run the pipeline with the `promptbeat` CLI or call the Go web service API for downstream integration.
+
+## What you can evaluate
+
+Promptbeat models the full range of AI agent application types as first-class targets:
+
+| Target class | Typical risks |
+|---|---|
+| **Coding agents** (Codex, Claude Code, OpenClaw) | Repo injection, terminal injection, secret reads, sandbox escape, network egress |
+| **Browser agents** | DOM injection, form exfiltration, unsafe navigation, cookie/session misuse |
+| **Support agents** | Cross-user access, PII leakage, refund abuse, policy override |
+| **Data agents** | Prompt-injected rows, private table access, unsafe code execution |
+| **DevOps agents** | Credential discovery, destructive cleanup, deployment sabotage |
+| **Benchmark tasks** | Task boundary violations, hidden-test probing, verifier tampering |
+
+## Get started
+
+<Steps>
+  <Step title="Install Promptbeat">
+    Download and unpack a Promptbeat release package from your distribution channel. See [Quick Start](/getting-started/quickstart) for installation details.
+  </Step>
+  <Step title="Define your target and scenario">
+    Create a `target.yaml` describing your agent and a `scenarios.yaml` defining the risk situations you want to test. See [Targets, Scenarios, Seeds](/concepts/target-scenario-seed).
+  </Step>
+  <Step title="Generate attack probes">
+    Run `promptbeat generate` to use an LLM generator to produce scenario-specific adversarial probes from your seeds or dataset subscriptions.
+  </Step>
+  <Step title="Evaluate and report">
+    Run `promptbeat eval` to execute probes against your real agent, then `promptbeat report` to produce an HTML/JSON/Markdown report with full trace evidence.
+  </Step>
+</Steps>
+
+<Tip>
+  The fastest way to see the full pipeline in action is the [Codex Quickstart](/getting-started/codex-quickstart), which uses a pre-built example you can run immediately.
+</Tip>

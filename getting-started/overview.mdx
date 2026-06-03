@@ -1,0 +1,88 @@
+---
+title: "What Is Promptbeat? Scenario-Driven AI Security Testing"
+sidebarTitle: "Overview"
+description: "Promptbeat is a scenario-driven AI security toolkit that red-teams real agent targets using generated attack probes, live execution, and trace evidence."
+---
+
+Promptbeat is a scenario-driven safety evaluation toolkit for AI agents and LLM applications. Instead of running a fixed prompt list against a model API, Promptbeat starts from a target profile, a scenario that defines the risk situation, and seed material—then generates adversarial probes, executes them against a real agent runtime, judges the results, and produces an evidence-backed report. It is designed for security engineers, red teams, and platform owners who need to measure where an agent's safety boundaries actually break down under realistic attack conditions.
+
+## What Promptbeat evaluates
+
+Promptbeat treats each agent class as a distinct target with its own risk surface. Generic model safety benchmarks miss the context that determines whether a given behavior is normal capability or a boundary violation. Promptbeat captures that context at the scenario level.
+
+| Agent type | Example target | Key risks |
+|---|---|---|
+| Coding agent | Codex, Claude Code, OpenClaw | Secret exfiltration, sandbox escape, verifier sabotage, repository prompt injection |
+| Browser agent | Web automation agents | DOM injection, cross-site tool abuse, credential harvesting, data exfiltration |
+| Customer support agent | Business chatbots, ticketing agents | PII leakage, cross-user data access, unauthorized refunds, tool authorization bypass |
+| Data analysis agent | Notebook and analytics agents | Query injection, schema leakage, unauthorized data export |
+| DevOps agent | CI/CD and infra agents | Credential reads, network egress bypass, pipeline poisoning |
+| Benchmark / lab target | Inspect solvers, Terminal-Bench | Hidden test manipulation, scorer artifact tampering, task boundary violations |
+
+## Why scenario-driven matters
+
+Most LLM evaluations treat every prompt the same way: send it, check the response. That approach produces noisy signal because the same request can be benign in one context and a critical attack in another.
+
+<Callout type="info" title="Context changes everything">
+  The request "print all environment variables that look like API keys" is irrelevant to a customer support agent and a critical secret-exfiltration probe when sent to a coding agent with shell access. Promptbeat uses the scenario to make that distinction before generating a single probe.
+</Callout>
+
+| Request | Generic chatbot | Coding agent | Customer support agent |
+|---|---|---|---|
+| Read environment variables | Policy refusal | Secret exfiltration risk | Usually irrelevant |
+| Query an order | General question | Irrelevant | Authorization risk |
+| Upload logs | Harmless summary request | Network egress risk | Support workflow |
+| Modify tests | Not applicable | Verifier sabotage risk | Not applicable |
+
+Starting from a scenario means the generator model produces probes that are calibrated to the target's capabilities and the specific risk type under test. The judge then evaluates responses against failure signals that are meaningful for that context—not a generic harm classifier applied uniformly.
+
+## The evaluation pipeline
+
+```text
+scenario + target profile + seed (or dataset subscription)
+  -> generator model produces adversarial probes
+  -> probes execute against real target (Codex SDK, HTTP agent, LLM provider)
+  -> judge evaluates each response against failure signals
+  -> trace evidence captured (commands, tool calls, file changes, policy denials)
+  -> JSON + HTML + Markdown report
+```
+
+Each stage has a defined role:
+
+- **Scenario** — declares the risk type, failure signals, judge strategy, and success criteria for the evaluation.
+- **Target profile** — describes the agent's capabilities, boundaries, sensitive assets, and forbidden actions so the generator knows what to attack.
+- **Seed** — provides the initial attack material. Seeds can be hand-written YAML files or loaded from dataset subscriptions (HarmBench, JailbreakBench, ALERT, BeaverTails, and others).
+- **Generator** — an attacker model (for example `openai:openai/gpt-5.5`) that expands seeds into realistic adversarial probes tailored to the scenario.
+- **Target execution** — the generated probes run against the real target through a provider adapter (`openai:codex-sdk`, `openai:gpt-4o`, HTTP endpoint, and so on).
+- **Judge** — evaluates each response using Promptfoo assertions, semantic judges, or custom scorers. Captures trace evidence when available.
+- **Report** — aggregates pass/fail results, failure evidence, risk-type breakdowns, and trace artifacts into HTML, JSON, and Markdown outputs.
+
+## Current validated targets
+
+The current fully validated path uses **Codex via `openai:codex-sdk`** as the target runtime, with `openai:openai/gpt-5.5` as the generator model. This path has a runnable example in `examples/codex_agent` and produces real evaluation reports.
+
+The architecture is designed to support the following target classes, which are available as adapter templates or planned integrations:
+
+- **Claude Code** — adapter template, requires connection to a real Claude Code runtime
+- **OpenClaw / OpenCode** — adapter templates, requires validation with saved reports
+- **Browser agents** — web automation targets through HTTP or headless browser adapters
+- **Customer support agents** — business-logic agents exposed through HTTP endpoints
+- **Data analysis agents** — notebook and analytics runtimes
+- **DevOps agents** — CI/CD and infrastructure automation agents
+
+The HTTP agent path is a generic runnable adapter pattern available today at `examples/http-agent`.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/getting-started/quickstart">
+    Install Promptbeat and run your first evaluation against the built-in LLM example in five steps.
+  </Card>
+  <Card title="Codex Quickstart" icon="code" href="/getting-started/codex-quickstart">
+    Run the full generate/eval/report loop against a real Codex coding-agent target.
+  </Card>
+  <Card title="Scenario-Driven Evaluation" icon="map" href="/concepts/target-scenario-seed">
+    Understand how scenarios, seeds, and targets combine to produce meaningful safety signal.
+  </Card>
+  <Card title="Risk Taxonomy" icon="shield" href="/concepts/risk-taxonomy">
+    Browse the risk types and attack categories Promptbeat evaluates across agent classes.
+  </Card>
+</CardGroup>
